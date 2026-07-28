@@ -7,3 +7,4 @@ repos:
   - url: "https://github.com/1unarzDev/wallpapers.git"
     path: "Pictures"
     name: "Wallpapers"
+    post_clone: ""
