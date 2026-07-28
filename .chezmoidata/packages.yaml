@@ -57,7 +57,7 @@ packages:
     # --- Fonts & Desktop Environment Tools ---
     - noto-fonts
     - noto-fonts-emoji
-    - noto-fonts-jp-vf
+    - noto-fonts-cjk
     - ttf-jetbrains-mono-nerd
     - papirus-icon-theme
     - gnome-keyring
