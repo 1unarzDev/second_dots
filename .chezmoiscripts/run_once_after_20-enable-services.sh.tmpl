@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+echo "==> Enabling System Services..."
+{{ range .services.system -}}
+if systemctl is-active --quiet {{ . }}; then
+    echo "  -> System service '{{ . }}' is already active."
+else
+    echo "  -> Enabling system service: {{ . }}"
+    sudo systemctl enable --now {{ . }}
+fi
+{{ end -}}
+
+echo "==> Enabling User Services..."
+{{ range .services.user -}}
+if systemctl --user is-active --quiet {{ . }}; then
+    echo "  -> User service '{{ . }}' is already active."
+else
+    echo "  -> Enabling user service: {{ . }}"
+    systemctl --user enable --now {{ . }}
+fi
+{{ end -}}

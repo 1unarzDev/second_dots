@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# {{ include ".chezmoidata/packages.yaml" | sha256sum }}
+
+set -euo pipefail
+
+echo "==> Installing official pacman packages..."
+sudo pacman -S --needed --noconfirm \
+{{ range .packages.pacman -}}
+  {{ . }} \
+{{ end }}
+
+# Install AUR helper if not present
+if ! command -v yay &> /dev/null; then
+    echo "==> Yay not found. Bootstrapping yay..."
+    sudo pacman -S --needed --noconfirm base-devel git
+    git clone https://aur.archlinux.org/yay-bin.git /tmp/yay-bin
+    cd /tmp/yay-bin
+    makepkg -si --noconfirm
+    rm -rf /tmp/yay-bin
+fi
+
+echo "==> Installing AUR packages..."
+yay -S --needed --noconfirm \
+{{ range .packages.aur -}}
+  {{ . }} \
+{{ end }}

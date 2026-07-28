@@ -1,0 +1,9 @@
+[[mgr.prepend_keymap]]
+on = [ "M" ]
+run = "plugin mount"
+desc = "Mount manager"
+
+[[mgr.prepend_keymap]]
+on = [ "<C-n>" ]
+run = "shell -- dragon-drop -x -i -T $@"
+desc = "Open in ripdrag"

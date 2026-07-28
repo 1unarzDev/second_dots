@@ -1,0 +1,95 @@
+packages:
+  pacman:
+    # --- Caelestia ---
+    - hyprland
+    - hyprpicker
+    - hyprsunset
+    - fish
+    - foot
+    - fuzzel
+    - grim
+    - slurp
+    - dconf
+    - brightnessctl
+    - xdg-desktop-portal-hyprland
+    - xdg-desktop-portal-gtk
+    - xdg-user-dirs
+    - qt5-wayland
+    - qt6-wayland
+    - hyprpolkitagent
+
+    # --- System & Audio/Bluetooth ---
+    - base-devel
+    - bluez
+    - bluez-utils
+    - pipewire
+    - wireplumber
+    - pavucontrol
+    - networkmanager
+    - nss-mdns
+    - sddm
+    - cups
+    - hplip
+
+    # --- Hardware (NVIDIA & CPU) ---
+    - nvidia-open
+    - nvidia-settings
+
+    # --- Dev Tools ---
+    - git
+    - git-lfs
+    - github-cli
+    - docker
+    - docker-compose
+    - neovim
+    - ripgrep
+    - zoxide
+    - starship
+    - fastfetch
+    - btop
+    - yazi
+    - trash-cli
+    - 7zip
+    - unzip
+    - usbutils
+    - imagemagick
+
+    # --- Fonts & Desktop Environment Tools ---
+    - noto-fonts
+    - noto-fonts-emoji
+    - noto-fonts-jp-vf
+    - ttf-jetbrains-mono-nerd
+    - papirus-icon-theme
+    - gnome-keyring
+    - seahorse
+    - cliphist
+    - wl-clipboard
+    - thunar
+
+    # --- Desktop Apps ---
+    - obsidian
+    - remmina
+    - nextcloud-client
+
+  aur:
+    # --- Caelestia & AUR Dependencies ---
+    - caelestia-cli
+    - caelestia-shell
+    - quickshell-git
+    - dart-sass
+    - swappy   
+
+    # --- Custom Binaries & Themes ---
+    - auto-cpufreq
+    - bibata-cursor-theme-bin
+    - dragon-drop
+    - papirus-folders
+    - cloudflare-warp-bin
+    - micromamba-bin
+    - mpris-scrobbler
+    - spicetify-cli
+    - spotify
+    - vesktop-bin
+    - zen-browser-bin
+    - visual-studio-code-bin
+    - xdg-desktop-portal-termfilechooser

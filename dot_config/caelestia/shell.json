@@ -1,0 +1,58 @@
+{
+    "appearance": {
+        "transparency": {
+            "enabled": true
+        }
+    },
+    "utilities": {
+        "quickToggles": [
+            {
+                "enabled": true,
+                "id": "wifi"
+            },
+            {
+                "enabled": true,
+                "id": "bluetooth"
+            },
+            {
+                "enabled": true,
+                "id": "mic"
+            },
+            {
+                "enabled": true,
+                "id": "settings"
+            },
+            {
+                "enabled": true,
+                "id": "gameMode"
+            },
+            {
+                "enabled": true,
+                "id": "dnd"
+            },
+            {
+                "enabled": true,
+                "id": "vpn"
+            }
+        ],
+        "vpn": {
+            "enabled": false,
+            "provider": [
+                {
+                    "connectCmd": [
+                        "warp-cli",
+                        "connect"
+                    ],
+                    "disconnectCmd": [
+                        "warp-cli",
+                        "disconnect"
+                    ],
+                    "displayName": "Cloudflare WARP",
+                    "enabled": true,
+                    "interface": "CloudflareWARP",
+                    "name": "warp"
+                }
+            ]
+        }
+    }
+}

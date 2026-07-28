@@ -1,0 +1,11 @@
+groups:
+  - docker
+  - input
+  - video
+  - audio
+  - seat
+  - i2c
+  - uucp
+  - wheel
+  - plugdev
+  - dialout

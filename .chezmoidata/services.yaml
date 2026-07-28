@@ -1,0 +1,16 @@
+services:
+  system:
+    - bluetooth
+    - cups
+    - NetworkManager
+    - power-profiles-daemon
+    - sddm
+    - systemd-timesyncd
+    - docker
+    - warp-svc
+    - avahi-daemon
+  user:
+    - pipewire
+    - pipewire-pulse
+    - wireplumber
+    - gnome-keyring-daemon

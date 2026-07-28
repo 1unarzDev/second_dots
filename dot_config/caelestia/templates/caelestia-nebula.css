@@ -1,0 +1,76 @@
+/*
+ * Generated automatically by Caelestia.
+ * Edit ~/.config/caelestia/templates/caelestia-nebula.css,
+ * not the generated copy.
+ */
+
+/* Zen/Firefox base theme */
+:root:root {
+  --lwt-accent-color: #{{ background.hex }} !important;
+  --lwt-text-color: #{{ onSurface.hex }} !important;
+
+  --tabpanel-background-color: #{{ background.hex }} !important;
+  --toolbar-bgcolor: #{{ surface.hex }} !important;
+  --toolbar-color: #{{ onSurface.hex }} !important;
+
+  --tab-selected-bgcolor: #{{ primaryContainer.hex }} !important;
+  --tab-loading-fill: #{{ primary.hex }} !important;
+
+  --toolbar-field-background-color: #{{ surfaceContainer.hex }} !important;
+  --toolbar-field-color: #{{ onSurface.hex }} !important;
+  --toolbar-field-focus-background-color: #{{ surfaceContainerHigh.hex }} !important;
+  --toolbar-field-focus-color: #{{ onSurface.hex }} !important;
+
+  --arrowpanel-background: #{{ surfaceContainer.hex }} !important;
+  --arrowpanel-color: #{{ onSurface.hex }} !important;
+  --arrowpanel-border-color: #{{ outlineVariant.hex }} !important;
+
+  --lwt-sidebar-background-color: #{{ background.hex }} !important;
+  --lwt-sidebar-text-color: #{{ onSurface.hex }} !important;
+
+  --zen-primary-color: #{{ primary.hex }} !important;
+  --zen-colors-primary: #{{ primary.hex }} !important;
+  --zen-colors-secondary: #{{ primaryContainer.hex }} !important;
+  --zen-colors-tertiary: #{{ surface.hex }} !important;
+  --zen-colors-border: #{{ outlineVariant.hex }} !important;
+
+  /* Backward compatibility with earlier Zen versions */
+  --zen-main-browser-background: #{{ background.hex }} !important;
+  --zen-main-browser-background-toolbar: #{{ surface.hex }} !important;
+  --zen-main-browser-background-old: #{{ background.hex }} !important;
+  --zen-themed-toolbar-bg: #{{ surface.hex }} !important;
+}
+
+/*
+ * Newer Zen versions attach their background variables directly
+ * to dedicated background elements instead of :root.
+ */
+#zen-browser-background {
+  --zen-main-browser-background: #{{ background.hex }} !important;
+  --zen-main-browser-background-old: #{{ background.hex }} !important;
+  background-color: #{{ background.hex }} !important;
+}
+
+#zen-toolbar-background {
+  --zen-main-browser-background-toolbar: #{{ surface.hex }} !important;
+  --zen-themed-toolbar-bg: #{{ surface.hex }} !important;
+  background-color: #{{ surface.hex }} !important;
+}
+
+findbar#FindToolbar,
+findbar#FindToolbar .findbar-container {
+  --toolbar-bgcolor: #{{ surfaceContainer.hex }}eb !important;
+  color: #{{ onSurface.hex }} !important;
+  background-color: #{{ surfaceContainer.hex }}eb !important;
+  background-image: none !important;
+}
+
+html[nebula-compact-mode] #Nebula-titlebar-background {
+  background-color: #{{ surface.hex }}ff !important;
+  opacity: 1 !important;
+  backdrop-filter: var(--nebula-glass) !important;
+}
+html[nebula-compact-mode] .zen-toolbar-background::before,
+html[nebula-compact-mode] .zen-toolbar-background::after {
+  background-color: #{{ surface.hex }}ff !important;
+}

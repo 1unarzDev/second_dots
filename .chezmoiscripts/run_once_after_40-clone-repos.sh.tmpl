@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+echo "==> Cloning Git repositories..."
+
+{{ range .repos -}}
+{{ if .path -}}
+TARGET_DIR="$HOME/{{ .path }}/{{ .name }}"
+mkdir -p "$HOME/{{ .path }}"
+{{ else -}}
+TARGET_DIR="$HOME/{{ .name }}"
+{{ end -}}
+
+if [ ! -d "$TARGET_DIR" ]; then
+  echo "  -> Cloning {{ .url }} into $TARGET_DIR..."
+  git clone --depth 1 "{{ .url }}" "$TARGET_DIR"
+  
+  {{ if .post_clone -}}
+  echo "  -> Running post-clone command for {{ .name }}: {{ .post_clone }}"
+  (cd "$TARGET_DIR" && {{ .post_clone }})
+  {{ end -}}
+else
+  echo "  -> Repository {{ .name }} already exists at $TARGET_DIR."
+fi
+{{ end -}}
+
+echo "==> Repository cloning complete."

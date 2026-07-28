@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+if command -v caelestia &> /dev/null; then
+  echo "==> Running Caelestia setup..."
+  caelestia install --aur-helper="yay" --enable-components="hypr,fish,foot,fastfetch,btop,thunar,starship,gtk,qt,auth,network,bluetooth,pipewire,clipboard,fonts,tools,spotify" --disable-components="micro,firefox,vscodium,vscode,zed,discord,todoist,uwsm,zen" --noconfirm
+fi

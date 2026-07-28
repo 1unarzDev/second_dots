@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# package.toml hash: {{ include "dot_config/yazi/package.toml" | sha256sum }}
+
+set -euo pipefail
+
+if command -v ya &> /dev/null; then
+  echo "==> Syncing Yazi plugins and flavors..."
+  ya pkg install
+else
+  echo "==> Warning: Yazi package manager 'ya' not found. Skipping plugin sync."
+fi

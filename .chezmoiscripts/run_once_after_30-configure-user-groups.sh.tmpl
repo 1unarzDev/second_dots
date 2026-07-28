@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+echo "==> Configuring user groups for user: $USER..."
+
+{{ range .groups -}}
+# Ensure group '{{ . }}' exists
+if ! getent group "{{ . }}" >/dev/null 2>&1; then
+  echo "  -> Creating missing group: {{ . }}"
+  sudo groupadd -r "{{ . }}"
+fi
+
+# Add user to group if not already a member
+if ! id -nG "$USER" | grep -qw "{{ . }}"; then
+  echo "  -> Adding $USER to group: {{ . }}"
+  sudo usermod -aG "{{ . }}" "$USER"
+else
+  echo "  -> $USER is already in group: {{ . }}"
+fi
+{{ end -}}
+
+echo "==> User group configuration complete."
