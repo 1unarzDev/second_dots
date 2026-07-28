@@ -3,9 +3,141 @@
 
 set -euo pipefail
 
-if command -v ya &> /dev/null; then
+# ── Yazi ─────────────────────────────────────────────────────────────────────
+
+if command -v ya &>/dev/null; then
   echo "==> Syncing Yazi plugins and flavors..."
   ya pkg install
 else
   echo "==> Warning: Yazi package manager 'ya' not found. Skipping plugin sync."
+fi
+
+# ── Zen / Sine ───────────────────────────────────────────────────────────────
+
+ZEN_CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}/zen"
+PROFILES_INI="$ZEN_CONFIG/profiles.ini"
+
+find_zen_profile() {
+  [[ -f "$PROFILES_INI" ]] || return 1
+
+  awk -v base="$ZEN_CONFIG" '
+    /^\[Profile/ {
+      if (path != "" && (default == "1" || fallback == "")) {
+        if (default == "1") {
+          print relative == "1" ? base "/" path : path
+          exit
+        }
+        fallback = relative == "1" ? base "/" path : path
+      }
+
+      path = ""
+      relative = "1"
+      default = "0"
+      next
+    }
+
+    /^Path=/       { path = substr($0, 6) }
+    /^IsRelative=/ { relative = substr($0, 12) }
+    /^Default=/    { default = substr($0, 9) }
+
+    END {
+      if (path != "" && default == "1")
+        print relative == "1" ? base "/" path : path
+      else if (fallback != "")
+        print fallback
+    }
+  ' "$PROFILES_INI" | head -n1
+}
+
+find_zen_root() {
+  local candidate
+
+  for candidate in \
+    /opt/zen-browser-bin \
+    /opt/zen-browser \
+    /usr/lib/zen-browser \
+    /usr/lib/zen; do
+    if [[ -d "$candidate" ]] &&
+      [[ -e "$candidate/zen" || -e "$candidate/zen-bin" ]]; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+install_sine() {
+  local profile chrome zen_root temp_dir
+
+  if ! profile="$(find_zen_profile)" || [[ ! -d "$profile" ]]; then
+    echo "==> Warning: No default Zen profile found. Start Zen once, then rerun chezmoi."
+    return
+  fi
+
+  if ! zen_root="$(find_zen_root)"; then
+    echo "==> Warning: Zen installation directory could not be detected."
+    return
+  fi
+
+  chrome="$profile/chrome"
+  mkdir -p "$chrome"
+
+  echo "==> Zen profile: $profile"
+  echo "==> Zen installation: $zen_root"
+  echo "==> Installing/updating Sine..."
+
+  temp_dir="$(mktemp -d)"
+  trap 'rm -rf "$temp_dir"' RETURN
+
+  curl --fail --location --silent --show-error \
+    "https://github.com/sineorg/bootloader/releases/latest/download/program.zip" \
+    --output "$temp_dir/program.zip"
+
+  curl --fail --location --silent --show-error \
+    "https://github.com/sineorg/bootloader/releases/latest/download/profile.zip" \
+    --output "$temp_dir/profile.zip"
+
+  curl --fail --location --silent --show-error \
+    "https://github.com/CosmoCreeper/Sine/releases/latest/download/engine.zip" \
+    --output "$temp_dir/engine.zip"
+
+  # This installs config.js and defaults/pref/config-prefs.js.
+  sudo unzip -oq "$temp_dir/program.zip" -d "$zen_root"
+
+  unzip -oq "$temp_dir/profile.zip" -d "$chrome"
+  unzip -oq "$temp_dir/engine.zip" -d "$chrome"
+
+  echo "==> Configuring Sine preferences..."
+
+  local user_js="$profile/user.js"
+  touch "$user_js"
+
+  for preference in \
+    'user_pref("toolkit.legacyUserProfileCustomizations.stylesheets", true);' \
+    'user_pref("browser.tabs.allow_transparent_browser", true);' \
+    'user_pref("sine.allow-external-marketplace", true);' \
+    'user_pref("sine.allow-unsafe-js", true);'; do
+    grep -Fqx "$preference" "$user_js" || printf '%s\n' "$preference" >>"$user_js"
+  done
+
+  local palette_source palette_link
+  palette_source="$HOME/.local/state/caelestia/theme/caelestia-nebula.css"
+  palette_link="$chrome/caelestia-nebula.css"
+
+  ln -sfn "$palette_source" "$palette_link"
+  echo "==> Linked Caelestia palette: $palette_link"
+
+  echo
+  echo "==> Sine installed."
+  echo "==> Restart Zen and clear its startup cache from about:support."
+  echo "==> Then install these repositories through Sine:"
+  echo "    Nebula: JustAdumbPrsn/Zen-Nebula"
+  echo "    Reload: 1unarzDev/caelestia_nebula_hot_reload"
+}
+
+if command -v curl &>/dev/null && command -v unzip &>/dev/null; then
+  install_sine
+else
+  echo "==> Warning: curl and unzip are required for Sine installation."
 fi
