@@ -2,7 +2,7 @@ repos:
   - url: "https://github.com/1unarzDev/zettelkasten.git"
     path: ""
     name: "zettelkasten"
-    post_clone: "git lfs pull"
+    post_clone: "git lfs install && git lfs pull"
 
   - url: "https://github.com/1unarzDev/wallpapers.git"
     path: "Pictures"
