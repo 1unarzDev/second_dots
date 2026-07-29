@@ -20,33 +20,68 @@ PROFILES_INI="$ZEN_CONFIG/profiles.ini"
 find_zen_profile() {
   [[ -f "$PROFILES_INI" ]] || return 1
 
-  awk -v base="$ZEN_CONFIG" '
-    /^\[Profile/ {
-      if (path != "" && (default == "1" || fallback == "")) {
-        if (default == "1") {
-          print relative == "1" ? base "/" path : path
-          exit
-        }
-        fallback = relative == "1" ? base "/" path : path
-      }
+  awk -F= -v base="$ZEN_CONFIG" '
+    function resolve(path, relative) {
+      if (path ~ /^\//)
+        return path
 
-      path = ""
+      return relative == "0" ? path : base "/" path
+    }
+
+    function save_profile() {
+      if (section !~ /^\[Profile/ || profile_path == "")
+        return
+
+      resolved = resolve(profile_path, relative)
+
+      if (is_default == "1")
+        default_profile = resolved
+
+      if (fallback == "")
+        fallback = resolved
+    }
+
+    /^\[/ {
+      save_profile()
+
+      section = $0
+      profile_path = ""
       relative = "1"
-      default = "0"
+      is_default = "0"
       next
     }
 
-    /^Path=/       { path = substr($0, 6) }
-    /^IsRelative=/ { relative = substr($0, 12) }
-    /^Default=/    { default = substr($0, 9) }
+    section ~ /^\[Install/ && $1 == "Default" {
+      install_profile = substr($0, index($0, "=") + 1)
+      next
+    }
+
+    section ~ /^\[Profile/ && $1 == "Path" {
+      profile_path = substr($0, index($0, "=") + 1)
+      next
+    }
+
+    section ~ /^\[Profile/ && $1 == "IsRelative" {
+      relative = $2
+      next
+    }
+
+    section ~ /^\[Profile/ && $1 == "Default" {
+      is_default = $2
+      next
+    }
 
     END {
-      if (path != "" && default == "1")
-        print relative == "1" ? base "/" path : path
+      save_profile()
+
+      if (install_profile != "")
+        print resolve(install_profile, "1")
+      else if (default_profile != "")
+        print default_profile
       else if (fallback != "")
         print fallback
     }
-  ' "$PROFILES_INI" | head -n1
+  ' "$PROFILES_INI"
 }
 
 find_zen_root() {
