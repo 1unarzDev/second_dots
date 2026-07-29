@@ -12,6 +12,10 @@ sudo mkdir -p /etc/sddm.conf.d && printf "[Autologin]\nUser=$USER\nSession=hyprl
 if command -v ya &>/dev/null; then
   echo "==> Syncing Yazi plugins and flavors..."
   ya pkg install
+  rm -rf /tmp/dynamic-yazi-caelestia-theme && \
+  git clone https://github.com/einebrotscheibe/dynamic-yazi-caelestia-theme.git /tmp/dynamic-yazi-caelestia-theme && \
+  bash /tmp/dynamic-yazi-caelestia-theme/setup.sh && \
+  rm -rf /tmp/dynamic-yazi-caelestia-theme
 else
   echo "==> Warning: Yazi package manager 'ya' not found. Skipping plugin sync."
 fi
