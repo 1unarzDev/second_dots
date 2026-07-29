@@ -3,6 +3,9 @@
 
 set -euo pipefail
 
+# ── Auto Login ───────────────────────────────────────────────────────────────
+sudo mkdir -p /etc/sddm.conf.d && printf "[Autologin]\nUser=$USER\nSession=hyprland\n" | sudo tee /etc/sddm.conf.d/autologin.conf > /dev/null
+
 # ── Yazi ─────────────────────────────────────────────────────────────────────
 
 if command -v ya &>/dev/null; then
