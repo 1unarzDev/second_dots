@@ -9,6 +9,7 @@ services:
     - docker
     - warp-svc
     - avahi-daemon
+    - udisks2
   user:
     - pipewire
     - pipewire-pulse

@@ -30,6 +30,8 @@ packages:
     - sddm
     - cups
     - hplip
+    - udisks2
+    - udiskie
 
     # --- Hardware (NVIDIA & CPU) ---
     - nvidia-open
