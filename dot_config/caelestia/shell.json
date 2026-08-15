@@ -4,6 +4,33 @@
             "enabled": true
         }
     },
+    "general": {
+        "idle": {
+            "inhibitWhenAudio": false,
+            "inhibitWhenCharging": false,
+            "lockBeforeSleep": true,
+            "timeouts": [
+                {
+                    "idleAction": "lock",
+                    "inhibitWhenAudio": false,
+                    "inhibitWhenCharging": false,
+                    "respectInhibitors": true,
+                    "timeout": 600
+                },
+                {
+                    "idleAction": "dpms off",
+                    "returnAction": "dpms on",
+                    "timeout": 1200
+                },
+                {
+                    "idleAction": [
+                        "suspendThenHibernate"
+                    ],
+                    "timeout": 1800
+                }
+            ]
+        }
+    },
     "utilities": {
         "quickToggles": [
             {
