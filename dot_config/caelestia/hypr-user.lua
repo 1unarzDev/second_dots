@@ -9,6 +9,9 @@ hl.env("HYPRCURSOR_SIZE", vars.cursorSize)
 -- Misc variables
 hl.env("EDITOR", "nvim")
 
+--- Certain app dark mode theme 
+hl.env("GTK_THEME", "adw-gtk3-dark")
+
 -- Player binds
 hl.bind(
     "SUPER + SHIFT + up",
