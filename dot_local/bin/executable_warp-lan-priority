@@ -1,0 +1,133 @@
+#!/usr/bin/env python3
+"""Keep connected LAN routes ahead of WARP without bypassing remote mesh routes."""
+import argparse
+import fcntl
+import ipaddress
+import json
+import os
+from pathlib import Path
+import subprocess
+import sys
+import time
+
+PRIORITY = 10500
+PROTOCOL = 242
+
+
+def run(*args):
+    return subprocess.check_output(args, text=True)
+
+
+def connected(routes):
+    result = set()
+    mesh = [ipaddress.ip_network('100.96.0.0/12'),
+            ipaddress.ip_network('2606:4700:cf1:1000::/64')]
+    for route in routes:
+        if route.get('dev') in (None, 'lo', 'CloudflareWARP'):
+            continue
+        if route.get('protocol') != 'kernel' or 'linkdown' in route.get('flags', []):
+            continue
+        try:
+            network = ipaddress.ip_network(route.get('dst', ''), strict=False)
+        except ValueError:
+            continue
+        if network.prefixlen == 0 or any(network.version == m.version and network.overlaps(m) for m in mesh):
+            continue
+        result.add(str(network))
+    return result
+
+
+def reconcile(check=False):
+    if check:
+        return _reconcile(check=True)
+    with open("/run/warp-lan-priority.lock", "w") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        return _reconcile()
+
+
+def _reconcile(check=False):
+    healthy = True
+    for family in ('-4', '-6'):
+        desired = connected(json.loads(run('ip', family, '-j', 'route', 'show', 'table', 'main')))
+        rules = json.loads(run('ip', family, '-details', '-j', 'rule', 'show'))
+        ours = set()
+        for rule in rules:
+            if rule.get('priority') != PRIORITY:
+                continue
+            if str(rule.get('protocol')) != str(PROTOCOL) or rule.get('table') not in ('main', 254):
+                raise RuntimeError(f'Priority {PRIORITY} is occupied by an unrelated rule; refusing to modify it')
+            destination = rule['dst']
+            if '/' not in destination and 'dstlen' in rule:
+                destination += '/' + str(rule['dstlen'])
+            ours.add(str(ipaddress.ip_network(destination, strict=False)))
+        if check:
+            missing, stale = desired - ours, ours - desired
+            print(f'{family}: {len(ours)} LAN rules; missing={sorted(missing)} stale={sorted(stale)}')
+            healthy = healthy and not missing and not stale
+            continue
+        # Add before removing, so interface transitions retain existing LAN access.
+        for action, networks in [('add', desired - ours), ('del', ours - desired)]:
+            for network in sorted(networks):
+                subprocess.run(['ip', family, 'rule', action, 'priority', str(PRIORITY),
+                                'to', network, 'lookup', 'main', 'protocol', str(PROTOCOL)], check=True)
+    return healthy
+
+
+def install():
+    destination = Path('/usr/local/libexec/warp-lan-priority')
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_bytes(Path(__file__).read_bytes())
+    destination.chmod(0o755)
+    Path('/etc/systemd/system/warp-lan-priority.service').write_text('''[Unit]
+Description=Preserve connected LAN routes ahead of Cloudflare WARP
+Before=warp-svc.service
+After=network-pre.target
+
+[Service]
+Type=simple
+ExecStartPre=/usr/local/libexec/warp-lan-priority --once
+ExecStart=/usr/local/libexec/warp-lan-priority --daemon
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+''')
+    dispatcher = Path('/etc/NetworkManager/dispatcher.d/90-warp-lan-priority')
+    dispatcher.parent.mkdir(parents=True, exist_ok=True)
+    dispatcher.write_text('#!/bin/sh\nexec /usr/local/libexec/warp-lan-priority --once\n')
+    dispatcher.chmod(0o755)
+    subprocess.run(['systemctl', 'daemon-reload'], check=True)
+    subprocess.run(['systemctl', 'enable', 'warp-lan-priority.service'], check=True)
+    subprocess.run(['systemctl', 'restart', 'warp-lan-priority.service'], check=True)
+    # Verify actual rule readiness rather than relying on a service-start acknowledgement.
+    for _ in range(10):
+        if reconcile(check=True):
+            return
+        time.sleep(1)
+    raise RuntimeError('LAN rules did not become ready')
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    mode = parser.add_mutually_exclusive_group(required=True)
+    for name in ('check', 'once', 'daemon', 'install'):
+        mode.add_argument('--' + name, action='store_true')
+    args = parser.parse_args()
+    if args.check:
+        return 0 if reconcile(check=True) else 1
+    if os.geteuid() != 0:
+        parser.error('This operation requires sudo; --check is read-only')
+    if args.install:
+        install()
+    elif args.once:
+        reconcile()
+    else:
+        while True:
+            reconcile()
+            time.sleep(5)
+    return 0
+
+
+if __name__ == '__main__':
+    sys.exit(main())

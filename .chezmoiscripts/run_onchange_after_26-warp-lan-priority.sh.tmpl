@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+set -euo pipefail
+# {{ include "dot_local/bin/executable_warp-lan-priority" | sha256sum }}
+# Installed as root-owned code, so the root service never executes user-writable code.
+sudo "$HOME/.local/bin/warp-lan-priority" --install

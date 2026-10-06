@@ -1,0 +1,77 @@
+#!/usr/bin/env python3
+"""Install LAN routing on the three hosts, apply the policy, and verify before accepting."""
+import json
+from pathlib import Path
+import subprocess
+import time
+
+HOME = Path.home()
+HELPER = HOME / '.local/bin/warp-lan-priority'
+POLICY = HOME / '.local/bin/cloudflare-network-policy'
+HOSTS = ['tranquility', 'verybeautifulserver']
+
+
+def run(args, capture=False):
+    return subprocess.run(args, check=True, timeout=120 if not capture else 20,
+                          text=True, capture_output=capture).stdout
+
+
+def verify():
+    probe = '''import json,subprocess,urllib.request
+from pathlib import Path
+subprocess.run([str(Path.home()/'.local/bin/warp-lan-priority'),'--check'],check=True,stdout=subprocess.DEVNULL)
+for family in ['-4','-6']:
+ routes=json.loads(subprocess.check_output(['ip',family,'-j','route','get','1.1.1.1' if family=='-4' else '2606:4700:4700::1111']))
+ assert routes[0]['dev']=='CloudflareWARP',str(routes)
+assert json.loads(subprocess.check_output(['ip','-j','route','get','100.96.0.28']))[0]['dev']=='CloudflareWARP'
+with urllib.request.urlopen('https://www.cloudflare.com/cdn-cgi/trace',timeout=10) as r:
+ trace=dict(l.split('=',1) for l in r.read().decode().splitlines() if '=' in l)
+ assert trace.get('warp') in ('on','plus'),trace.get('warp')
+print('LAN rules, IPv4/IPv6 Internet routes, mesh route and WARP egress passed')
+'''
+    for host in [None] + HOSTS:
+        args = ['/usr/bin/python3', '-'] if host is None else ['ssh', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=8', host, 'python3 -']
+        result = subprocess.run(args, input=probe, text=True, capture_output=True, timeout=25, check=True)
+        print(f'{host or "innovation"}: {result.stdout.strip()}', flush=True)
+    for host, home in [('tranquility','/home/peace'),('verybeautifulserver','/home/lunarz')]:
+        json.loads(run(['cx', 'files', home, '--device', host], capture=True))
+    print('cx remote file/helper access passed', flush=True)
+    ready = json.loads(run(['ssh', '-o', 'ConnectTimeout=8', 'verybeautifulserver',
+                           'curl -fsS --max-time 10 http://127.0.0.1:20241/ready'], capture=True))
+    if ready.get('status') != 200 or ready.get('readyConnections', 0) < 1:
+        raise RuntimeError('cloudflared has no ready connections')
+    code = run(['curl', '-sS', '--max-time', '15', '-o', '/dev/null', '-w', '%{http_code}', 'https://codex.lunarz.dev/'], capture=True)
+    if code.strip() != '200':
+        raise RuntimeError('Public Codex endpoint check failed')
+    remote_lan = "import socket; s=socket.create_connection(('192.168.1.50',22),10); assert s.recv(256).startswith(b'SSH-'); s.close()"
+    run(['/usr/bin/python3', '-c', remote_lan], capture=True)
+    print('cloudflared readiness, public Codex endpoint and remote home-LAN SSH reachability passed', flush=True)
+
+
+def main():
+    print('Installing local LAN-priority service; sudo may request your password.', flush=True)
+    run(['sudo', str(HELPER), '--install'])
+    for host in HOSTS:
+        run(['scp', '-q', str(HELPER), f'{host}:.local/bin/warp-lan-priority'])
+        print(f'Installing LAN-priority service on {host}; SSH/sudo may request authentication.', flush=True)
+        run(['ssh', '-t', host, 'chmod +x ~/.local/bin/warp-lan-priority && sudo ~/.local/bin/warp-lan-priority --install'])
+    # Source the explicitly authorized local Fish credential without copying it to another host.
+    subprocess.run(['fish', '-c', 'if not set -q CLOUDFLARE_API_KEY; source ~/.config/caelestia/.env.secrets >/dev/null; end; '
+                    'set -gx CLOUDFLARE_API_KEY $CLOUDFLARE_API_KEY; ~/.local/bin/cloudflare-network-policy --apply'], check=True)
+    deadline = time.monotonic() + 150
+    while True:
+        try:
+            verify()
+            break
+        except (subprocess.SubprocessError, ValueError, RuntimeError) as error:
+            if time.monotonic() >= deadline:
+                print('Verification failed. Timed rollback remains armed; no acceptance was recorded.', flush=True)
+                raise
+            print('Waiting for policy propagation; retrying validation in 10 seconds.', flush=True)
+            time.sleep(10)
+    (HOME / '.local/state/chezmoi/cloudflare-network/rollback-pending.json').unlink()
+    print('Policy accepted after validation. Robot forwarding/NAT remains unchanged.', flush=True)
+
+
+if __name__ == '__main__':
+    main()

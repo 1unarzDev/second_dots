@@ -1,0 +1,126 @@
+#!/usr/bin/env python3
+"""Plan/apply the personal MASQUE policy, preserving local and remote LAN routes."""
+import argparse
+import ipaddress
+import json
+import os
+from pathlib import Path
+import subprocess
+import urllib.error
+import urllib.request
+
+ACCOUNT = 'caa986c8bf3907b23e49eace3b4401f1'
+POLICY = 'e098bf8e-8cdd-47a0-9592-ee456f6f79fe'
+ROOT = Path.home() / '.local/state/chezmoi/cloudflare-network'
+
+
+def exclusions():
+    nets = ['10.0.0.0/8', '172.16.0.0/12', '127.0.0.0/8', '169.254.0.0/16',
+            '224.0.0.0/4', '240.0.0.0/4', '::1/128', 'fe80::/10', 'fc00::/7', 'ff00::/8',
+            '198.41.192.0/24', '198.41.200.0/24', '2606:4700:a0::/48', '2606:4700:a8::/48']
+    for parent, tunneled in [('192.168.0.0/16', '192.168.1.0/24'),
+                             ('100.64.0.0/10', '100.96.0.0/12')]:
+        nets.extend(str(n) for n in ipaddress.ip_network(parent).address_exclude(ipaddress.ip_network(tunneled)))
+    return [{'address': n, 'description': 'Local/private access or cloudflared transport; mesh and home LAN remain tunneled'} for n in nets]
+
+
+def api(path, method='GET', body=None):
+    token = os.environ.get('CLOUDFLARE_API_KEY')
+    if not token:
+        raise RuntimeError('Export CLOUDFLARE_API_KEY in Fish before running this command')
+    request = urllib.request.Request('https://api.cloudflare.com/client/v4/' + path,
+                                    headers={'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json'},
+                                    data=json.dumps(body).encode() if body is not None else None, method=method)
+    try:
+        with urllib.request.urlopen(request, timeout=20) as response:
+            result = json.load(response)
+    except urllib.error.HTTPError as error:
+        raise RuntimeError(f'Cloudflare {method} returned HTTP {error.code}') from None
+    if not result.get('success'):
+        raise RuntimeError('Cloudflare rejected the request: ' + json.dumps(result.get('errors')))
+    return result['result']
+
+
+def readiness():
+    commands = [['warp-lan-priority', '--check']]
+    for host in ['tranquility', 'verybeautifulserver']:
+        commands.append(['ssh', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=8', host,
+                         '~/.local/bin/warp-lan-priority --check'])
+    for command in commands:
+        subprocess.run(command, check=True, timeout=20)
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    mode = parser.add_mutually_exclusive_group(required=True)
+    mode.add_argument('--plan', action='store_true')
+    mode.add_argument('--apply', action='store_true')
+    mode.add_argument('--rollback', action='store_true')
+    args = parser.parse_args()
+    path = f'accounts/{ACCOUNT}/devices/policy/{POLICY}'
+    if args.rollback:
+        original = json.loads((ROOT / 'last-policy-before.json').read_text())
+        body = {k: original[k] for k in ['name', 'description', 'tunnel_protocol', 'service_mode_v2'] if k in original}
+        if 'include' in original:
+            body.update(include=original['include'], exclude=[])
+        else:
+            body.update(exclude=original.get('exclude', []), include=[])
+        api(path, 'PATCH', body)
+        print('Original profile restored; LAN-priority rules remain installed.')
+        return
+    body = {'name': 'Lunarz MASQUE, mesh and private DNS',
+            'description': 'Public Internet over MASQUE; mesh and remote home LAN tunneled; connected LANs take precedence through warp-lan-priority.',
+            'tunnel_protocol': 'masque', 'service_mode_v2': {'mode': 'warp'},
+            'include': [], 'exclude': exclusions()}
+    if args.plan:
+        print(json.dumps(body, indent=2))
+        return
+    readiness()
+    if (ROOT / "rollback-pending.json").exists():
+        raise RuntimeError("A rollback is already pending; verify or restore that change first")
+    before = api(path)
+    if before.get('match') != 'identity.email == "warp_connector@lunarz.cloudflareaccess.com"':
+        raise RuntimeError('Enrollment selector changed; refusing to alter another scope')
+    ROOT.mkdir(parents=True, exist_ok=True)
+    ROOT.chmod(0o700)
+    backup = ROOT / 'last-policy-before.json'
+    backup.write_text(json.dumps(before, indent=2) + '\n')
+    backup.chmod(0o600)
+    # Separate process rolls back even if changing our route interrupts this terminal.
+    env = dict(os.environ)
+    rollback = '''import json,os,time,urllib.request
+from pathlib import Path
+time.sleep(300)
+p=Path(os.environ['CF_ROLLBACK_STATE'])
+if not p.exists():raise SystemExit(0)
+s=json.loads(p.read_text())
+old=s['before']
+b={k:old[k] for k in ['name','description','tunnel_protocol','service_mode_v2'] if k in old}
+b.update(include=old.get('include',[]),exclude=old.get('exclude',[]))
+r=urllib.request.Request(s['url'],data=json.dumps(b).encode(),method='PATCH',headers={'Authorization':'Bearer '+os.environ['CLOUDFLARE_API_KEY'],'Content-Type':'application/json'})
+with urllib.request.urlopen(r,timeout=30) as response:
+ result=json.load(response)
+ if not result.get('success'):raise RuntimeError('Automatic rollback failed')
+p.unlink()
+'''
+    state = ROOT / 'rollback-pending.json'
+    if state.exists():
+        raise RuntimeError('A rollback is already pending; verify or restore that change first')
+    state.write_text(json.dumps({'before': before, 'url': 'https://api.cloudflare.com/client/v4/' + path}))
+    state.chmod(0o600)
+    env['CF_ROLLBACK_STATE'] = str(state)
+    log = open(ROOT / 'rollback.log', 'a')
+    process = subprocess.Popen(['/usr/bin/python3', '-c', rollback], env=env, stdin=subprocess.DEVNULL,
+                               stdout=log, stderr=log, start_new_session=True)
+    log.close()
+    try:
+        api(path, 'PATCH', body)
+    except Exception:
+        # Keep the rollback armed for uncertain API outcomes.
+        raise
+    print(f'Policy updated. Automatic rollback is armed for 5 minutes (PID {process.pid}).')
+    print(f'After checking all three hosts, Internet egress, LAN, cx and public tunnel health, delete {state} to accept.')
+
+
+if __name__ == '__main__':
+    main()

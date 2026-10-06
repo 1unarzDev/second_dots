@@ -120,3 +120,35 @@ configuration restore. Existing personal binaries are not overwritten.
 Verify lazy startup, default Node selection, argument forwarding and hook failure
 retries with `python tests/check-shell.py`. Package changes require sudo; a
 configuration-only apply does not install new packages or user tools.
+
+## Cloudflare networking
+
+`warp-lan-priority` installs a root-owned service and NetworkManager dispatcher
+that give connected LAN subnets priority over WARP. It follows interface changes,
+leaves default/remote mesh routes alone, and refuses to replace unrelated rules.
+Install with `sudo ~/.local/bin/warp-lan-priority --install`; inspect without sudo
+using `warp-lan-priority --check`. Chezmoi installs it in setup stage 26 on the
+managed Arch hosts. The Ubuntu mesh server also needs this helper installed before
+changing the shared profile. Existing forwarding/NAT configuration is not changed.
+
+`warp-network-setup` performs the three installations with sudo authentication,
+applies the personal policy, retries propagation checks, and accepts only after
+validation. Run it from innovation in a terminal.
+
+`cloudflare-network-policy --plan` shows the proposed personal profile.
+`--apply` requires exported `CLOUDFLARE_API_KEY` and successful LAN-rule checks on
+innovation, tranquility and verybeautifulserver. It changes only the existing
+personal enrollment profile, preserves its DNS/mesh settings, and arms a five-minute
+rollback. Keep the rollback pending until all hosts pass route/Internet/LAN checks,
+mesh SSH and cx remote file access, plus cloudflared readiness and the public
+Codex web endpoint. Deleting the displayed rollback-pending file accepts the
+change. `--rollback` restores the saved profile manually. API credentials are never
+written into backups or this repository.
+
+The intended policy tunnels public Internet through MASQUE and keeps the mesh
+ranges and remote home LAN (`192.168.1.0/24`) inside WARP. Other private subnets
+remain direct; connected LAN rules override the tunnel when physically on the
+home subnet. Cloudflared transport networks are direct to avoid tunnel recursion.
+The account-default profile and unrelated enrollment identities remain unchanged.
+Physical robot forwarding is managed separately in cx. Physical downstream-device
+Internet access cannot be validated when no edge device is connected.
