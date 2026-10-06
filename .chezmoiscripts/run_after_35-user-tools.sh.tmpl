@@ -4,9 +4,11 @@ set -euo pipefail
 if ! uv tool list | grep -q '^dvc '; then
     uv tool install 'dvc[s3]'
 fi
-# Claude's native self-updater is replaced with its supported npm distribution.
-if ! command -v claude >/dev/null 2>&1; then
-    npm install --global --prefix "$HOME/.local" @anthropic-ai/claude-code
+# A launcher can exist even when npm skipped Claude's native optional package.
+# Preserve a working native or npm installation; repair incomplete installations.
+if ! command -v claude >/dev/null 2>&1 || ! claude --version >/dev/null 2>&1; then
+    npm install --global --prefix "$HOME/.local" --ignore-scripts=false --include=optional @anthropic-ai/claude-code
+    "$HOME/.local/bin/claude" --version
 fi
 {{ if eq .chezmoi.hostname "tranquility" }}
 # Preserve the laptop's installed Rust channels without updating them on each apply.
