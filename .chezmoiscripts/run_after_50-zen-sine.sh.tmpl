@@ -3,10 +3,19 @@ set -euo pipefail
 # Installed browser version: {{ if lookPath "pacman" }}{{ output "sh" "-c" "pacman -Q zen-browser-bin 2>/dev/null || true" | trim }}{{ end }}
 # Bootstrap hash: {{ include ".chezmoitemplates/sine-bootstrap.sys.mjs" | sha256sum }}
 
+# This stage is revisited on every apply so an open browser cannot permanently
+# hide unfinished setup behind chezmoi's run_onchange cache. Record only success.
+SETUP_FINGERPRINT="{{ include ".chezmoiscripts/run_after_50-zen-sine.sh.tmpl" | sha256sum }}:{{ include ".chezmoitemplates/sine-bootstrap.sys.mjs" | sha256sum }}:{{ .chezmoi.hostname }}:{{ if lookPath "pacman" }}{{ output "sh" "-c" "pacman -Q zen-browser-bin 2>/dev/null || true" | trim }}{{ end }}"
+SETUP_STATE="${XDG_STATE_HOME:-$HOME/.local/state}/chezmoi/zen-sine.fingerprint"
+
 # ── Zen / Sine ───────────────────────────────────────────────────────────────
 
 ZEN_CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}/zen"
 PROFILES_INI="$ZEN_CONFIG/profiles.ini"
+
+zen_is_running() {
+  pgrep -u "$(id -u)" -x zen &>/dev/null || pgrep -u "$(id -u)" -x zen-bin &>/dev/null
+}
 
 find_zen_profile() {
   [[ -f "$PROFILES_INI" ]] || return 1
@@ -141,6 +150,25 @@ install_sine() (
   local nebula_config
   local program_file
 
+  # Read-only checks are safe while the browser is open. Skip completed work.
+  if profile="$(find_zen_profile)" && [[ -n "$profile" ]] &&
+     zen_root="$(find_zen_root)" &&
+     [[ -f "$SETUP_STATE" && "$(cat "$SETUP_STATE")" == "$SETUP_FINGERPRINT" &&
+        -f "$zen_root/config.js" && -f "$zen_root/defaults/pref/config-prefs.js" &&
+        -f "$profile/chrome/JS/sine.sys.mjs" &&
+        -f "$profile/chrome/JS/core/manager.sys.mjs" &&
+        -f "$profile/chrome/JS/zz-chezmoi-sine-bootstrap.sys.mjs" ]] &&
+     grep -Fq 'chezmoi-sine-bootstrap-loader' "$profile/chrome/JS/sine.sys.mjs"; then
+    echo "==> Zen/Sine setup is already current."
+    return 0
+  fi
+
+  if zen_is_running; then
+    echo "==> Zen is open; Sine installation deferred. Continuing chezmoi apply."
+    echo "==> Close Zen normally and run chezmoi apply again to finish Sine setup."
+    return 0
+  fi
+
   if [[ ! -f "$PROFILES_INI" ]]; then
     echo "==> Creating initial Zen profile..."
     zen-browser --headless -CreateProfile "default"
@@ -161,12 +189,6 @@ install_sine() (
 
   if ! zen_root="$(find_zen_root)"; then
     echo "==> Error: Zen installation directory could not be detected." >&2
-    return 1
-  fi
-
-  if pgrep -u "$(id -u)" -x zen &>/dev/null || pgrep -u "$(id -u)" -x zen-bin &>/dev/null; then
-    echo "==> Warning: Zen appears to be running."
-    echo "==> Close Zen before updating Sine."
     return 1
   fi
 
@@ -194,6 +216,13 @@ install_sine() (
   curl --fail --location --silent --show-error --retry 3 --connect-timeout 15 --max-time 120 \
     "https://github.com/CosmoCreeper/Sine/releases/latest/download/engine.zip" \
     --output "$temp_dir/engine.zip"
+
+  # The browser may have been opened while the downloads were in progress.
+  if zen_is_running; then
+    echo "==> Zen opened during setup; Sine installation deferred. Continuing chezmoi apply."
+    echo "==> Close Zen normally and run chezmoi apply again to finish Sine setup."
+    return 0
+  fi
 
   echo "==> Installing Sine application bootloader..."
 
@@ -274,8 +303,6 @@ install_sine() (
   echo "==> Linked Caelestia palette:"
   echo "    $palette_link -> $palette_source"
 
-  rm -rf -- "$temp_dir"
-
   echo
   echo "==> Sine installation complete."
   rm -rf -- "$profile/startupCache"
@@ -287,6 +314,10 @@ install_sine() (
   echo
   echo "==> Browser Console messages use the prefix:"
   echo "    [chezmoi/Sine]"
+
+  mkdir -p "$(dirname "$SETUP_STATE")"
+  printf '%s\n' "$SETUP_FINGERPRINT" > "$temp_dir/fingerprint"
+  mv -- "$temp_dir/fingerprint" "$SETUP_STATE"
 )
 
 connect_sine_bootstrap() {

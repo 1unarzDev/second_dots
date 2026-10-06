@@ -26,7 +26,7 @@ class SetupTests(unittest.TestCase):
         self.bin = self.root / 'bin'
         self.bin.mkdir()
         self.env = os.environ | {'PATH': str(self.bin) + ':' + os.environ['PATH'],
-                                 'FIXTURE_ROOT': str(self.root)}
+                                 'FIXTURE_ROOT': str(self.root), 'XDG_STATE_HOME': str(self.root / 'state')}
 
     def command(self, name, code):
         path = self.bin / name
@@ -110,10 +110,23 @@ shutil.copyfile(Path(os.environ['FIXTURE_ROOT'])/'archives'/url.split('/')[-1],a
         self.command('sudo', 'import sys,subprocess\nsys.exit(subprocess.call(sys.argv[1:]))\n')
         self.env['XDG_CONFIG_HOME'] = str(self.root / 'config')
         work = self.root / 'work'; work.mkdir(); self.env['TMPDIR'] = str(work)
-        script = render('run_onchange_after_50-zen-sine.sh.tmpl',
+        script = render('run_after_50-zen-sine.sh.tmpl',
                         {'chezmoi': {'hostname': 'tranquility'}}).replace('/opt/zen-browser-bin', str(zen))
+        # An open browser must not prevent later chezmoi stages from running.
+        self.command('pgrep', 'import sys\nsys.exit(0)\n')
+        open_result = self.bash(script + '\necho later-stage-completed\n')
+        self.assert_ok(open_result)
+        self.assertIn('deferred', open_result.stdout)
+        self.assertIn('later-stage-completed', open_result.stdout)
+        self.assertFalse((active / 'chrome').exists())
+        stamp = self.root / 'state/chezmoi/zen-sine.fingerprint'
+        self.assertFalse(stamp.exists())
+        self.command('pgrep', 'import sys\nsys.exit(1)\n')
         self.assert_ok(self.bash(script))
-        self.assert_ok(self.bash(script))
+        self.assertTrue(stamp.exists())
+        current = self.bash(script)
+        self.assert_ok(current)
+        self.assertIn('already current', current.stdout)
         content = (active / 'user.js').read_text()
         self.assertEqual(content.count('browser.tabs.allow_transparent_browser'), 1)
         self.assertIn('"browser.tabs.allow_transparent_browser", false', content)
@@ -123,7 +136,30 @@ shutil.copyfile(Path(os.environ['FIXTURE_ROOT'])/'archives'/url.split('/')[-1],a
         self.assertEqual((zen / 'config.js').read_text(), 'bootloader')
         self.assertFalse(list(work.iterdir()))
         self.command('pgrep', 'import sys\nsys.exit(0)\n')
-        self.assertNotEqual(self.bash(script).returncode, 0)
+        stamp.write_text('previous-revision')
+        result = self.bash(script)
+        self.assert_ok(result)
+        self.assertIn('deferred', result.stdout)
+        self.assertEqual(stamp.read_text(), 'previous-revision')
+        self.assertFalse(list(work.iterdir()))
+        # The unchanged stage must retry successfully once the browser closes.
+        self.command('pgrep', 'import sys\nsys.exit(1)\n')
+        self.assert_ok(self.bash(script))
+        self.assertNotEqual(stamp.read_text(), 'previous-revision')
+        self.assertFalse(list(work.iterdir()))
+        # Reopening during downloads also defers without marking completion.
+        stamp.write_text('before-race')
+        self.command('pgrep', """import os,sys
+from pathlib import Path
+count=Path(os.environ['FIXTURE_ROOT'])/'pgrep-count'
+n=int(count.read_text())+1 if count.exists() else 1
+count.write_text(str(n))
+sys.exit(0 if n>=3 else 1)
+""")
+        result = self.bash(script)
+        self.assert_ok(result)
+        self.assertIn('Zen opened during setup', result.stdout)
+        self.assertEqual(stamp.read_text(), 'before-race')
         self.assertFalse(list(work.iterdir()))
 
     def test_yazi_preserves_corrupt_cache_and_retries(self):

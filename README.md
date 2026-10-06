@@ -5,9 +5,11 @@ transparency: enabled on innovation, disabled on tranquility. No host-specific
 chezmoi data file is needed. Home paths use the current user's home directory.
 
 Run `chezmoi apply` locally on either device. Package installation, system services,
-groups, SDDM and the Sine application bootloader require sudo. Close Zen before
-applying changes to Sine; the script fails rather than recording a skipped setup
-as successful. User preferences can be updated while Zen runs and take effect on
+groups, SDDM and the Sine application bootloader require sudo. Applying with Zen
+open continues normally and defers Sine installation. Close Zen normally and run
+`chezmoi apply` again to finish any pending Sine work. Completed setup is recorded
+with its own fingerprint; deferred work is retried on later applies.
+User preferences can be updated while Zen runs and take effect on
 its next launch. First-time setup creates a Zen profile automatically.
 
 The scripts restore declared packages plus the explicitly installed application
@@ -66,7 +68,8 @@ checkout, `chezmoi update` fetches and applies the current repository state.
 
 Setup stages are separate so SDDM changes do not require reinstalling Yazi or
 Sine. Post-clone steps retry after failure and preserve successful work. Sine
-errors leave setup pending instead of silently marking it successful; the
+errors leave setup pending instead of silently marking it successful. An open
+browser defers only Sine work and does not interrupt the rest of setup; the
 browser version is included in its setup fingerprint so applying after a Zen
 upgrade repairs its bootloader.
 
