@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+set -euo pipefail
+# Restore tools installed outside pacman; uv install is idempotent.
+uv tool install dvc
+# Claude's native self-updater is replaced with its supported npm distribution.
+if ! command -v claude >/dev/null 2>&1; then
+    npm install --global --prefix "$HOME/.local" @anthropic-ai/claude-code
+fi
+{{ if eq .chezmoi.hostname "tranquility" }}
+# Preserve the laptop's installed Rust channels without updating them on each apply.
+for channel in stable nightly; do
+    if ! rustup toolchain list | grep -q "^${channel}-"; then
+        rustup toolchain install "$channel"
+    fi
+done
+{{ end }}

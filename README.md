@@ -82,3 +82,41 @@ Run `python tests/check-setup.py -v` to exercise package/service orchestration,
 post-clone retries, Sine profile selection and cache repair in isolated fixtures.
 Run `python tests/check-bindings.py` inside a running desktop to verify the live
 bindings and compositor config. Fixtures never install packages on the live OS.
+
+## Tool audit (innovation and tranquility, 2026-10-05)
+
+Both hosts explicitly restore Node, npm, pnpm, uv, Go, micromamba, Codex,
+direnv and eza instead of depending on incidental dependency installs.
+Tranquility also restores rustup and its existing stable/nightly channels, and
+its SOF audio firmware. Explicitly installed desktop packages were compared
+against the shared and per-host inventories; remaining exclusions are OS/boot
+packages, yay variants/debug builds, hardware-selected NVIDIA packages and the
+local, unavailable `caelestia-firefox-theme` build.
+
+Fish autoloads nvm.fish 2.2.18 from a pinned, MIT-licensed vendored copy. It does
+not download or initialize Node at shell startup. System Node is the default;
+`nvm install lts` installs and selects an LTS version. To persist that selection,
+use `set -U nvm_default_version lts`; the first node/npm/npx/pnpm command in a
+new shell activates it. `.nvmrc` is supported by `nvm install` / `nvm use`.
+This is Fish-native nvm, with its own data directory, rather than Bash nvm.
+Downloaded Node versions and universal default preferences are local state.
+
+micromamba, mamba and conda initialize the same micromamba Fish hook on first
+use. Existing `MAMBA_EXE` and `MAMBA_ROOT_PREFIX` overrides are respected; the
+default root is `~/micromamba`. Arguments are forwarded without eval. A failed
+hook remains retryable. Conda/mamba names are compatibility aliases, not
+separate distributions. Environment contents still need project environment
+files or backups; they are not copied by chezmoi.
+
+User-tool automation restores DVC through `uv tool install` and installs Claude
+through its supported npm package when absent. Existing native Claude installs
+remain usable. Fish includes `~/.local/bin` without eager tool initialization.
+Unity Hub is covered, but the standalone `~/.local/bin/unity` CLI (beta.5 on
+innovation) is currently a separate installation whose installer is not tracked.
+Unity Editors, project files, browser/application data, authentication, arbitrary
+npm globals, and downloaded Python/Node environments are also outside the
+configuration restore. Existing personal binaries are not overwritten.
+
+Verify lazy startup, default Node selection, argument forwarding and hook failure
+retries with `python tests/check-shell.py`. Package changes require sudo; a
+configuration-only apply does not install new packages or user tools.

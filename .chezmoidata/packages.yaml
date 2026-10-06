@@ -50,6 +50,15 @@ packages:
     - udiskie
 
     # --- Dev Tools ---
+    - chezmoi
+    - sudo
+    - nodejs
+    - npm
+    - pnpm
+    - uv
+    - go
+    - direnv
+    - eza
     - git
     - git-lfs
     - github-cli
@@ -99,6 +108,7 @@ packages:
     - papirus-folders
     - cloudflare-warp-bin
     - micromamba-bin
+    - openai-codex-bin
     - mpris-scrobbler
     - spicetify-cli
     - spotify
