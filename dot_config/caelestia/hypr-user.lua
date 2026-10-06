@@ -67,18 +67,9 @@ hl.bind("SUPER + ALT + L", fn.resize_active_window(10, 0), { repeating = true })
 hl.bind("SUPER + ALT + K", fn.resize_active_window(0, -10), { repeating = true })
 hl.bind("SUPER + ALT + J", fn.resize_active_window(0, 10), { repeating = true })
 
--- Lock
+-- Wake the outputs and lock as soon as shell IPC is ready, without an input event.
 hl.on("hyprland.start", function()
-    hl.exec_cmd([[
-        (
-            while true; do
-                if caelestia shell lock lock && caelestia shell lock isLocked | grep -q true; then
-                    exit 0
-                fi
-                sleep 0.1
-            done
-        ) &
-    ]])
+    hl.exec_cmd('"$HOME/.local/bin/caelestia-startup-lock"')
 end)
 
 -- Notes use the same launch/move/toggle behavior as music and communication.

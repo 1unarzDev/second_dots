@@ -152,3 +152,17 @@ home subnet. Cloudflared transport networks are direct to avoid tunnel recursion
 The account-default profile and unrelated enrollment identities remain unchanged.
 Physical robot forwarding is managed separately in cx. Physical downstream-device
 Internet access cannot be validated when no edge device is connected.
+
+## Boot lock screen
+
+SDDM autologin starts Hyprland; Caelestia provides the password lock screen.
+`caelestia-startup-lock` wakes/refreshes outputs before requesting the lock, retries
+until shell IPC confirms it is locked, then wakes/refreshes again. There is no
+fixed startup delay or input-event dependency. The lock uses the wallpaper
+background rather than the first-frame screencopy path, whose upstream code notes
+a startup capture race. The helper supports Lua and legacy Hyprland dispatchers
+and checks their response text as well as exit status.
+
+Run `python tests/check-startup-lock.py` for delayed IPC/lock readiness, wake retry,
+and exit-zero dispatcher errors. Actual cold-boot visibility requires a physical
+boot check; configuration reload does not trigger the startup lock.

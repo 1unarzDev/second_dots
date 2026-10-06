@@ -1,0 +1,41 @@
+#!/usr/bin/env python3
+"""Wake boot displays and request the lock as soon as Caelestia IPC is ready."""
+import subprocess
+import time
+
+
+def command(*args):
+    try:
+        return subprocess.run(args, capture_output=True, text=True, timeout=3)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+
+
+def wake_displays(run):
+    # Lua-based Hyprland needs a Lua dispatcher; legacy installations use dpms on.
+    # -r requests a compositor refresh even when outputs are already powered on.
+    for args in [('hyprctl', '-r', 'dispatch', 'hl.dsp.dpms({ action = "enable" })'),
+                 ('hyprctl', '-r', 'dispatch', 'dpms', 'on')]:
+        result = run(*args)
+        # Some Hyprland versions return exit 0 even for dispatcher syntax errors.
+        if result is not None and result.returncode == 0 and result.stdout.strip() == 'ok':
+            return True
+    return False
+
+
+def startup_lock(run=command, sleep=time.sleep):
+    # Boot/VT switching may leave outputs asleep. Wake before creating lock surfaces.
+    wake_displays(run)
+    while True:
+        result = run('caelestia', 'shell', 'lock', 'lock')
+        if result is not None and result.returncode == 0:
+            state = run('caelestia', 'shell', 'lock', 'isLocked')
+            if state is not None and state.returncode == 0 and state.stdout.strip() == 'true':
+                # Wake once more after surfaces exist; never wait for mouse/keyboard input.
+                if wake_displays(run):
+                    return
+        sleep(0.1)
+
+
+if __name__ == '__main__':
+    startup_lock()
