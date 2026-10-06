@@ -25,8 +25,10 @@ return {
     kbMoveWinToWsGroup         = "CTRL + SUPER + SHIFT",
     kbGoToWs                   = "SUPER",
     kbGoToWsGroup              = "CTRL + SUPER",
-    kbNextWs                   = "CTRL + SUPER + Right",
-    kbPrevWs                   = "CTRL + SUPER + Left",
+    kbNextWs                   = "SUPER + Right",
+    kbPrevWs                   = "SUPER + Left",
+    kbMoveWinToWsNext          = { "CTRL + SUPER + Right", "CTRL + SUPER + SHIFT + Right" },
+    kbMoveWinToWsPrev          = { "CTRL + SUPER + Left", "CTRL + SUPER + SHIFT + Left" },
 
     -- Window Group
     kbWindowGroupCycleNext     = "CTRL + ALT + TAB",

@@ -47,10 +47,14 @@ hl.bind(
 hl.bind("ALT + SHIFT + up", hl.dsp.global("caelestia:brightnessUp"), { locked = true, repeating = true })
 hl.bind("ALT + SHIFT + down", hl.dsp.global("caelestia:brightnessDown"), { locked = true, repeating = true })
 
--- Register arrow focus ourselves; older installations may have patched these out.
+-- Override upstream arrow focus: horizontal arrows navigate workspaces.
 for _, direction in ipairs({ "left", "right", "up", "down" }) do
     hl.unbind("SUPER + " .. direction)
-    hl.bind("SUPER + " .. direction, hl.dsp.focus({ direction = direction }))
+    if direction == "left" or direction == "right" then
+        hl.bind("SUPER + " .. direction, hl.dsp.focus({ workspace = direction == "left" and "-1" or "+1" }), { repeating = true })
+    else
+        hl.bind("SUPER + " .. direction, hl.dsp.focus({ direction = direction }))
+    end
 end
 
 -- Movement binds
