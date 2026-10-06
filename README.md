@@ -49,9 +49,9 @@ stored in this repository.
   desktop applications that accept files or URLs, including newly installed apps.
 
 Keep Awake mirrors Caelestia's toggle into a logind block inhibitor for idle,
-sleep and lid handling. Disabling the toggle releases it. The bridge starts from
-Hyprland so it belongs to the active desktop session, including after applying
-chezmoi through SSH. Normal lid-close and sleep behavior remains when the toggle
+sleep and lid handling. Disabling the toggle releases it. The bridge is a supervised systemd user service, enabled by chezmoi and
+started independently of Caelestia. It discovers the active desktop even after
+applying through SSH. Normal lid-close and sleep behavior remains when the toggle
 is disabled. Actual physical lid behavior should be checked on the laptop.
 
 ## Transfer boundaries
@@ -166,3 +166,20 @@ and checks their response text as well as exit status.
 Run `python tests/check-startup-lock.py` for delayed IPC/lock readiness, wake retry,
 and exit-zero dispatcher errors. Actual cold-boot visibility requires a physical
 boot check; configuration reload does not trigger the startup lock.
+
+## Keep Awake persistence
+
+`caelestia-keep-awake.service` is enabled at user-manager startup and automatically
+restarts after failure. It follows Caelestia's toggle with logind block inhibitors
+for idle, sleep and lid handling. An unavailable shell/IPC preserves the last
+state; a replacement shell has its enabled toggle restored before its initial
+default is read. The enabled preference is stored under
+`~/.local/state/caelestia-keep-awake/`, so bridge restarts preserve it too. Turning
+the toggle off releases the bridge's inhibitors and restores normal lid behavior.
+
+The helper and service belong to chezmoi, not Caelestia's package files. Setup
+stage 66 reloads updated bridge code; shell/package updates do not stop the
+service. `systemctl --user status caelestia-keep-awake.service` and
+`systemd-inhibit --list` show its live state. State-transition regression checks
+are in `tests/check-keep-awake.py`. Physical lid-close behavior needs a laptop
+check; toggle release/acquisition and bridge crash recovery were verified live.

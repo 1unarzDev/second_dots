@@ -1,0 +1,13 @@
+[Unit]
+Description=Preserve Caelestia Keep Awake across shell updates and inhibit lid suspend
+
+[Service]
+Type=simple
+ExecStartPre=%h/.local/bin/caelestia-keep-awake --retire-legacy
+ExecStart=%h/.local/bin/caelestia-keep-awake
+Restart=always
+RestartSec=2
+KillMode=control-group
+
+[Install]
+WantedBy=default.target

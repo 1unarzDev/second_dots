@@ -11,6 +11,7 @@ services:
     - avahi-daemon
     - udisks2
   user:
+    - caelestia-keep-awake.service
     - pipewire
     - pipewire-pulse
     - wireplumber

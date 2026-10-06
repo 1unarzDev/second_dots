@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+set -euo pipefail
+# {{ include "dot_local/bin/executable_caelestia-keep-awake" | sha256sum }}
+# {{ include "dot_config/systemd/user/caelestia-keep-awake.service" | sha256sum }}
+systemctl --user daemon-reload
+systemctl --user enable caelestia-keep-awake.service
+systemctl --user restart caelestia-keep-awake.service

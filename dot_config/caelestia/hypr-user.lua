@@ -77,5 +77,5 @@ hl.bind("SUPER + O", fn.toggle("notes"))
 
 -- Keep the system sleep inhibitor connected to the shell's Keep Awake toggle.
 hl.on("hyprland.start", function()
-    hl.exec_cmd("$HOME/.local/bin/caelestia-keep-awake")
+    hl.exec_cmd("systemctl --user start caelestia-keep-awake.service")
 end)

@@ -2,7 +2,7 @@
 set -euo pipefail
 # No running desktop is required on a fresh machine. Refresh an existing session.
 python - <<'PY'
-import json, os, shlex, subprocess
+import json, os, subprocess
 from pathlib import Path
 runtime = Path(os.environ.get('XDG_RUNTIME_DIR', f'/run/user/{os.getuid()}'))
 if not runtime.is_dir():
@@ -16,9 +16,7 @@ for instance in json.loads(result.stdout):
     env = os.environ | {'HYPRLAND_INSTANCE_SIGNATURE': instance['instance'],
                         'WAYLAND_DISPLAY': instance['wl_socket']}
     subprocess.run(['hyprctl', 'reload'], env=env, check=True)
-    # Launch from the desktop session so logind sees an active local user,
-    # even when chezmoi apply is invoked over SSH.
-    command = shlex.quote(str(Path.home() / '.local/bin/caelestia-keep-awake'))
-    subprocess.run(['hyprctl', 'dispatch', f'hl.dsp.exec_cmd({json.dumps(command)})'],
-                   env=env, check=True)
+    # The supervised bridge discovers the desktop instance even after SSH apply.
+    subprocess.run(['systemctl', '--user', 'daemon-reload'], check=True)
+    subprocess.run(['systemctl', '--user', 'enable', '--now', 'caelestia-keep-awake.service'], check=True)
 PY
