@@ -7,7 +7,7 @@ fi
 # A launcher can exist even when npm skipped Claude's native optional package.
 # Preserve a working native or npm installation; repair incomplete installations.
 if ! command -v claude >/dev/null 2>&1 || ! claude --version >/dev/null 2>&1; then
-    npm install --global --prefix "$HOME/.local" --ignore-scripts=false --include=optional @anthropic-ai/claude-code
+    npm install --global --prefix "$HOME/.local" --ignore-scripts=false --include=optional --allow-scripts=@anthropic-ai/claude-code @anthropic-ai/claude-code
     "$HOME/.local/bin/claude" --version
 fi
 {{ if eq .chezmoi.hostname "tranquility" }}
