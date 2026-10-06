@@ -1,7 +1,8 @@
 [filechooser]
 cmd=yazi-wrapper.sh
 default_dir=$HOME
-env=TERMCMD='foot -T "terminal filechooser"'
-    VARIABLE2=VALUE2
+# Use a dedicated app ID to avoid Caelestia's opaque rule for regular Foot windows.
+# Match Yazi's overall background so Foot's matching alpha mode applies.
+env=TERMCMD='foot --app-id=yazi-filechooser --override=colors-dark.background=0d0e12 -T "terminal filechooser"'
 open_mode = suggested
 save_mode = last
