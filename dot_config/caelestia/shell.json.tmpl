@@ -10,7 +10,7 @@
             "inhibitWhenCharging": false,
             "lockBeforeSleep": {{ if eq .chezmoi.hostname "innovation" }}false{{ else }}true{{ end }},
             "timeouts": [
-{{ if ne .chezmoi.hostname "innovation" }}
+{{- if ne .chezmoi.hostname "innovation" }}
                 {
                     "idleAction": "lock",
                     "inhibitWhenAudio": false,
@@ -29,7 +29,7 @@
                     ],
                     "timeout": 1800
                 }
-{{ end }}
+{{- end }}
             ]
         }
     },
@@ -77,9 +77,9 @@
                         "disconnect"
                     ],
                     "displayName": "Cloudflare WARP",
+                    "id": "warp",
                     "interface": "CloudflareWARP",
-                    "name": "warp",
-                    "id": "warp"
+                    "name": "warp"
                 }
             ],
             "selectedProvider": "warp"
