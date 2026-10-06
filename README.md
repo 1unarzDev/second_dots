@@ -108,7 +108,7 @@ hook remains retryable. Conda/mamba names are compatibility aliases, not
 separate distributions. Environment contents still need project environment
 files or backups; they are not copied by chezmoi.
 
-User-tool automation restores DVC through `uv tool install` and installs Claude
+User-tool automation restores DVC with S3 support through `uv tool install`, preserving existing tool extras, and installs Claude
 through its supported npm package when absent. Existing native Claude installs
 remain usable. Fish includes `~/.local/bin` without eager tool initialization.
 Unity Hub is covered, but the standalone `~/.local/bin/unity` CLI (beta.5 on

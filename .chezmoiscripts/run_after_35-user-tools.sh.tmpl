@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
-# Restore tools installed outside pacman; uv install is idempotent.
-uv tool install dvc
+# Preserve extras on existing installations; restore innovation's S3 support.
+if ! uv tool list | grep -q '^dvc '; then
+    uv tool install 'dvc[s3]'
+fi
 # Claude's native self-updater is replaced with its supported npm distribution.
 if ! command -v claude >/dev/null 2>&1; then
     npm install --global --prefix "$HOME/.local" @anthropic-ai/claude-code
