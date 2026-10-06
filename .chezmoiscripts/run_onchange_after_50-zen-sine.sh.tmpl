@@ -1,24 +1,7 @@
 #!/usr/bin/env bash
-# package.toml hash: {{ include "dot_config/yazi/package.toml" | sha256sum }}
-
 set -euo pipefail
-
-# ── Auto Login ───────────────────────────────────────────────────────────────
-echo "==> Configuring SDDM autostart..."
-sudo mkdir -p /etc/sddm.conf.d && printf "[Autologin]\nUser=$USER\nSession=hyprland\n" | sudo tee /etc/sddm.conf.d/autologin.conf > /dev/null
-
-# ── Yazi ─────────────────────────────────────────────────────────────────────
-
-if command -v ya &>/dev/null; then
-  echo "==> Syncing Yazi plugins and flavors..."
-  ya pkg install
-  rm -rf /tmp/dynamic-yazi-caelestia-theme && \
-  git clone https://github.com/einebrotscheibe/dynamic-yazi-caelestia-theme.git /tmp/dynamic-yazi-caelestia-theme && \
-  bash /tmp/dynamic-yazi-caelestia-theme/setup.sh && \
-  rm -rf /tmp/dynamic-yazi-caelestia-theme
-else
-  echo "==> Warning: Yazi package manager 'ya' not found. Skipping plugin sync."
-fi
+# Installed browser version: {{ if lookPath "pacman" }}{{ output "sh" "-c" "pacman -Q zen-browser-bin 2>/dev/null || true" | trim }}{{ end }}
+# Bootstrap hash: {{ include ".chezmoitemplates/sine-bootstrap.sys.mjs" | sha256sum }}
 
 # ── Zen / Sine ───────────────────────────────────────────────────────────────
 
@@ -48,6 +31,8 @@ find_zen_profile() {
       if (fallback == "")
         fallback = resolved
     }
+
+    { sub(/\r$/, "") }
 
     /^\[/ {
       save_profile()
@@ -118,9 +103,16 @@ append_user_pref() {
 
   preference="user_pref(\"$pref_name\", $pref_value);"
 
-  if ! grep -Fqx "$preference" "$user_js"; then
-    printf '%s\n' "$preference" >>"$user_js"
-  fi
+  # Replace all prior values so restarts cannot restore a conflicting setting.
+  PREF_NAME="$pref_name" python - "$user_js" <<'EOF'
+import os, re, sys
+from pathlib import Path
+p = Path(sys.argv[1])
+pattern = r'^\s*user_pref\(\s*"' + re.escape(os.environ['PREF_NAME']) + r'"\s*,'
+content = ''.join(line for line in p.read_text().splitlines(True) if not re.match(pattern, line))
+p.write_text(content.rstrip('\n') + '\n' if content else '')
+EOF
+  printf '%s\n' "$preference" >>"$user_js"
 }
 
 install_sine_bootstrap() {
@@ -132,134 +124,13 @@ install_sine_bootstrap() {
   mkdir -p "$chrome/JS"
 
   cat >"$bootstrap" <<'EOF'
-/*
- * Installs the chezmoi-managed Sine mods on first launch.
- *
- * This module remains installed, but stops doing work after the
- * sine.chezmoi-mods-installed preference is set.
- */
-
-import manager from "./core/manager.sys.mjs";
-import utils from "./core/utils.sys.mjs";
-
-const COMPLETION_PREF = "sine.chezmoi-mods-installed";
-const RELOAD_REPOSITORY =
-  "https://github.com/1unarzDev/caelestia_nebula_hot_reload";
-
-async function getInstalledMods() {
-  try {
-    return (await utils.getMods()) ?? {};
-  } catch {
-    return {};
-  }
-}
-
-function hasReloadMod(mods) {
-  return Object.values(mods).some(mod => {
-    const homepage = String(mod?.homepage ?? "").toLowerCase();
-    const name = String(mod?.name ?? "").toLowerCase();
-    const id = String(mod?.id ?? "").toLowerCase();
-
-    return (
-      homepage.includes("1unarzdev/caelestia_nebula_hot_reload") ||
-      name.includes("caelestia nebula hot reload") ||
-      id.includes("caelestia_nebula_hot_reload") ||
-      id.includes("caelestia-nebula-hot-reload")
-    );
-  });
-}
-
-async function installManagedMods() {
-  if (Services.prefs.getBoolPref(COMPLETION_PREF, false)) {
-    console.info("[chezmoi/Sine] Managed mods are already installed.");
-    return;
-  }
-
-  try {
-    /*
-     * sine.sys.mjs loads this module asynchronously. Wait until Sine has
-     * initialized its mod directory and mods.json.
-     */
-    for (let attempt = 0; attempt < 100; attempt++) {
-      if (await IOUtils.exists(utils.modsDataFile)) {
-        break;
-      }
-
-      await new Promise(resolve => {
-        Services.tm.dispatchToMainThread(resolve);
-      });
-    }
-
-    if (!(await IOUtils.exists(utils.modsDataFile))) {
-      throw new Error("Sine did not initialize mods.json.");
-    }
-    let installed = await getInstalledMods();
-    let changed = false;
-
-    if (!installed.Nebula) {
-      console.info("[chezmoi/Sine] Installing Nebula...");
-
-      await manager.installMod(
-        "Nebula",
-        "store",
-        false
-      );
-
-      changed = true;
-      installed = await getInstalledMods();
-    }
-
-    if (!hasReloadMod(installed)) {
-      console.info(
-        "[chezmoi/Sine] Installing Caelestia Nebula hot reload..."
-      );
-
-      await manager.installMod(
-        RELOAD_REPOSITORY,
-        null,
-        false
-      );
-
-      changed = true;
-    }
-
-    if (changed) {
-      await manager.rebuildMods();
-      await manager.loadMods();
-    }
-
-    const finalMods = await getInstalledMods();
-
-    if (!finalMods.Nebula || !hasReloadMod(finalMods)) {
-      throw new Error(
-        "One or more managed Sine mods were not found after installation."
-      );
-    }
-
-    Services.prefs.setBoolPref(COMPLETION_PREF, true);
-
-    console.info(
-      "[chezmoi/Sine] Automatic mod installation complete."
-    );
-  } catch (error) {
-    /*
-     * Do not set the completion preference when installation fails.
-     * This allows another attempt on the next Zen launch.
-     */
-    console.error(
-      "[chezmoi/Sine] Automatic mod installation failed:",
-      error
-    );
-  }
-}
-
-installManagedMods();
+{{ include ".chezmoitemplates/sine-bootstrap.sys.mjs" }}
 EOF
 
   echo "==> Installed Sine mod bootstrap: $bootstrap"
 }
 
-install_sine() {
+install_sine() (
   local profile
   local chrome
   local zen_root
@@ -267,34 +138,36 @@ install_sine() {
   local user_js
   local palette_source
   local palette_link
+  local nebula_config
+  local program_file
 
   if [[ ! -f "$PROFILES_INI" ]]; then
-    echo "==> Warning: $PROFILES_INI does not exist."
-    echo "==> Start Zen once, close it, and rerun chezmoi."
-    return
+    echo "==> Creating initial Zen profile..."
+    zen-browser --headless -CreateProfile "default"
+    [[ -f "$PROFILES_INI" ]] || { echo "Zen did not create profiles.ini" >&2; return 1; }
   fi
 
   if ! profile="$(find_zen_profile)" || [[ -z "$profile" ]]; then
-    echo "==> Warning: Could not determine the active Zen profile."
-    return
+    echo "==> Error: Could not determine the active Zen profile." >&2
+    return 1
   fi
 
   if [[ ! -d "$profile" ]]; then
-    echo "==> Warning: Detected Zen profile does not exist:"
+    echo "==> Error: Detected Zen profile does not exist:" >&2
     echo "    $profile"
-    echo "==> Start Zen once, close it, and rerun chezmoi."
-    return
+    echo "==> Start Zen once, close it, and rerun chezmoi." >&2
+    return 1
   fi
 
   if ! zen_root="$(find_zen_root)"; then
-    echo "==> Warning: Zen installation directory could not be detected."
-    return
+    echo "==> Error: Zen installation directory could not be detected." >&2
+    return 1
   fi
 
-  if pgrep -x zen &>/dev/null || pgrep -x zen-bin &>/dev/null; then
+  if pgrep -u "$(id -u)" -x zen &>/dev/null || pgrep -u "$(id -u)" -x zen-bin &>/dev/null; then
     echo "==> Warning: Zen appears to be running."
     echo "==> Close Zen before updating Sine."
-    return
+    return 1
   fi
 
   chrome="$profile/chrome"
@@ -308,16 +181,17 @@ install_sine() {
   echo "==> Installing/updating Sine..."
 
   temp_dir="$(mktemp -d)"
+  trap 'rm -rf -- "$temp_dir"' EXIT
 
-  curl --fail --location --silent --show-error \
+  curl --fail --location --silent --show-error --retry 3 --connect-timeout 15 --max-time 120 \
     "https://github.com/sineorg/bootloader/releases/latest/download/program.zip" \
     --output "$temp_dir/program.zip"
 
-  curl --fail --location --silent --show-error \
+  curl --fail --location --silent --show-error --retry 3 --connect-timeout 15 --max-time 120 \
     "https://github.com/sineorg/bootloader/releases/latest/download/profile.zip" \
     --output "$temp_dir/profile.zip"
 
-  curl --fail --location --silent --show-error \
+  curl --fail --location --silent --show-error --retry 3 --connect-timeout 15 --max-time 120 \
     "https://github.com/CosmoCreeper/Sine/releases/latest/download/engine.zip" \
     --output "$temp_dir/engine.zip"
 
@@ -326,7 +200,17 @@ install_sine() {
   # Installs:
   #   <Zen root>/config.js
   #   <Zen root>/defaults/pref/config-prefs.js
-  sudo unzip -oq "$temp_dir/program.zip" -d "$zen_root"
+  mkdir -p "$temp_dir/program"
+  unzip -oq "$temp_dir/program.zip" -d "$temp_dir/program"
+  for program_file in config.js defaults/pref/config-prefs.js; do
+    [[ -f "$temp_dir/program/$program_file" ]] || {
+      echo "==> Error: Sine bootloader is missing $program_file" >&2
+      return 1
+    }
+    if ! cmp -s "$temp_dir/program/$program_file" "$zen_root/$program_file"; then
+      sudo install -D -m 0644 "$temp_dir/program/$program_file" "$zen_root/$program_file"
+    fi
+  done
 
   echo "==> Installing Sine profile bootloader and engine..."
 
@@ -357,7 +241,7 @@ install_sine() {
   append_user_pref \
     "$user_js" \
     "browser.tabs.allow_transparent_browser" \
-    "true"
+    "{{ if eq .chezmoi.hostname "tranquility" }}false{{ else }}true{{ end }}"
 
   append_user_pref \
     "$user_js" \
@@ -382,7 +266,10 @@ install_sine() {
 
   mkdir -p "$(dirname "$palette_source")"
   ln -sfn "$palette_source" "$palette_link"
-  nebula_config="$chrome/sine-mods/Nebula/nebula/config.css"; [[ ! -f "$nebula_config" ]] || grep -Fqx '@import url("../../../caelestia-nebula.css");' "$nebula_config" || sed -i '1i @import url("../../../caelestia-nebula.css");' "$nebula_config"
+  nebula_config="$chrome/sine-mods/Nebula/nebula/config.css"
+  if [[ -f "$nebula_config" ]] && ! grep -Fqx '@import url("../../../caelestia-nebula.css");' "$nebula_config"; then
+    sed -i '1i @import url("../../../caelestia-nebula.css");' "$nebula_config"
+  fi
 
   echo "==> Linked Caelestia palette:"
   echo "    $palette_link -> $palette_source"
@@ -391,8 +278,8 @@ install_sine() {
 
   echo
   echo "==> Sine installation complete."
-  echo "==> Start Zen and clear the startup cache from about:support."
-  echo "==> Restart Zen once more."
+  rm -rf -- "$profile/startupCache"
+  echo "==> Start Zen to load the installed mods."
   echo
   echo "==> On startup, Sine will automatically install:"
   echo "    - Nebula"
@@ -400,7 +287,7 @@ install_sine() {
   echo
   echo "==> Browser Console messages use the prefix:"
   echo "    [chezmoi/Sine]"
-}
+)
 
 connect_sine_bootstrap() {
   local chrome="$1"
@@ -426,9 +313,11 @@ EOF
 }
 
 if ! command -v curl &>/dev/null; then
-  echo "==> Warning: curl is required for Sine installation."
+  echo "==> Error: curl is required for Sine installation." >&2
+  exit 1
 elif ! command -v unzip &>/dev/null; then
-  echo "==> Warning: unzip is required for Sine installation."
+  echo "==> Error: unzip is required for Sine installation." >&2
+  exit 1
 else
   install_sine
 fi

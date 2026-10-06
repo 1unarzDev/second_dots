@@ -1,22 +1,35 @@
 #!/usr/bin/env bash
 # {{ include ".chezmoidata/packages.yaml" | sha256sum }}
+# {{ include ".chezmoidata/host-packages.json" | sha256sum }}
 
 set -euo pipefail
 
 echo "==> Installing official pacman packages..."
-sudo pacman -S --needed --noconfirm \
+sudo pacman -Syu --needed --noconfirm \
 {{ range .packages.pacman -}}
   {{ . }} \
+{{ end -}}
+{{ with index .hostPackages .chezmoi.hostname -}}
+{{ range .pacman -}}
+  {{ . }} \
+{{ end -}}
 {{ end }}
+
+# Select GPU packages from hardware rather than installing NVIDIA on every host.
+if lspci -n | grep -Eq ' (0300|0302): 10de:'; then
+    sudo pacman -S --needed --noconfirm nvidia-open nvidia-settings
+fi
 
 # Install AUR helper if not present
 if ! command -v yay &> /dev/null; then
     echo "==> Yay not found. Bootstrapping yay..."
     sudo pacman -S --needed --noconfirm base-devel git
-    git clone https://aur.archlinux.org/yay-bin.git /tmp/yay-bin
-    cd /tmp/yay-bin
-    makepkg -si --noconfirm
-    rm -rf /tmp/yay-bin
+    (
+        yay_build="$(mktemp -d)"
+        trap 'rm -rf -- "$yay_build"' EXIT
+        git clone https://aur.archlinux.org/yay-bin.git "$yay_build"
+        (cd "$yay_build" && makepkg -si --noconfirm)
+    )
 fi
 
 echo "==> Installing AUR packages..."
@@ -24,3 +37,12 @@ yay -S --needed --noconfirm \
 {{ range .packages.aur -}}
   {{ . }} \
 {{ end }}
+{{ with index .hostPackages .chezmoi.hostname -}}
+{{ if .aur -}}
+echo "==> Restoring additional applications for {{ $.chezmoi.hostname }}..."
+yay -S --needed --noconfirm \
+{{ range .aur -}}
+  {{ . }} \
+{{ end }}
+{{ end -}}
+{{ end -}}

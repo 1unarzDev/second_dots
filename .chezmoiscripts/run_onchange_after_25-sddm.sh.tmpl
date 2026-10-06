@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+set -euo pipefail
+config="$(mktemp)"
+trap 'rm -f -- "$config"' EXIT
+printf '[Autologin]\nUser=%s\nSession=hyprland.desktop\n' "$(id -un)" > "$config"
+if ! cmp -s "$config" /etc/sddm.conf.d/autologin.conf; then
+    sudo install -D -m 0644 "$config" /etc/sddm.conf.d/autologin.conf
+fi

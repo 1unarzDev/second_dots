@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+set -euo pipefail
+{{ range .repos -}}
+target="$HOME/{{ if .path }}{{ .path }}/{{ end }}{{ .name }}"
+if [[ ! -e "$target" ]]; then
+    mkdir -p "$(dirname "$target")"
+    git clone --depth 1 {{ .url | quote }} "$target"
+elif [[ "$(git -C "$target" rev-parse --show-toplevel 2>/dev/null || true)" != "$(realpath "$target")" ]]; then
+    echo "==> Error: $target exists but is not a Git repository." >&2
+    exit 1
+fi
+{{ if .post_clone -}}
+# A successful clone does not imply that its post-clone work succeeded.
+# Retry incomplete work on later applies, including on existing checkouts.
+marker="$(git -C "$target" rev-parse --absolute-git-dir)/chezmoi-post-clone-{{ .post_clone | sha256sum }}"
+if [[ ! -f "$marker" ]]; then
+    (cd "$target" && {{ .post_clone }})
+    touch "$marker"
+fi
+{{ end -}}
+{{ end -}}

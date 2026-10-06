@@ -1,4 +1,25 @@
 [opener]
-edit = [
-    { run = 'nvim "$@"', block = true }
+choose = [{ run = '"$HOME/.local/bin/yazi-open-with" %s', orphan = true, desc = "Other installed application…" }]
+edit = [{ run = 'nvim %s', block = true, desc = "Neovim" }]
+code = [{ run = 'code %s', orphan = true, desc = "VS Code" }]
+open = [{ run = 'xdg-open %s1', orphan = true, desc = "Default application" }]
+browse = [{ run = 'zen-browser %s', orphan = true, desc = "Zen" }]
+files = [{ run = 'thunar %s', orphan = true, desc = "Thunar" }]
+image = [{ run = 'swappy -f %s1', orphan = true, desc = "Swappy" }]
+extract = [{ run = 'ya pub extract --list %s', desc = "Extract archive" }]
+reveal = [{ run = 'xdg-open %d1', orphan = true, desc = "Open containing folder" }]
+
+[open]
+# Ctrl+O shows the choices; Enter uses the first opener.
+rules = [
+    { mime = "inode/directory", use = ["files", "code", "open", "choose"] },
+    { url = "*.md", use = ["edit", "code", "open", "reveal", "choose"] },
+    { mime = "text/html", use = ["browse", "edit", "code", "open", "reveal", "choose"] },
+    { mime = "text/*", use = ["edit", "code", "open", "reveal", "choose"] },
+    { mime = "application/{json,javascript,xml,x-shellscript}", use = ["edit", "code", "open", "reveal", "choose"] },
+    { mime = "image/*", use = ["open", "image", "reveal", "choose"] },
+    { mime = "{audio,video}/*", use = ["open", "reveal", "choose"] },
+    { mime = "application/pdf", use = ["open", "browse", "reveal", "choose"] },
+    { mime = "application/{zip,gzip,x-tar,x-bzip2,x-xz,x-7z-compressed,x-rar,vnd.rar}", use = ["extract", "open", "reveal", "choose"] },
+    { url = "*", use = ["open", "edit", "code", "reveal", "choose"] },
 ]

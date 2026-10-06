@@ -1,0 +1,41 @@
+{
+    "toggles": {
+        "communication": {
+            "discord": {
+                "enable": true,
+                "match": [
+                    {
+                        "class": "vesktop"
+                    },
+                    {
+                        "class": "Vesktop"
+                    },
+                    {
+                        "class": "discord"
+                    }
+                ],
+                "command": [
+                    "vesktop"
+                ],
+                "move": true
+            }
+        },
+        "notes": {
+            "obsidian": {
+                "enable": true,
+                "match": [
+                    {
+                        "class": "obsidian"
+                    },
+                    {
+                        "class": "Obsidian"
+                    }
+                ],
+                "command": [
+                    "obsidian"
+                ],
+                "move": true
+            }
+        }
+    }
+}

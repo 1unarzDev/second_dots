@@ -1,0 +1,45 @@
+#!/usr/bin/env python3
+"""Choose an installed desktop application that accepts file arguments."""
+import configparser
+import os
+from pathlib import Path
+import subprocess
+import sys
+
+
+def main():
+    if len(sys.argv) < 2:
+        return
+    roots = [Path(os.environ.get('XDG_DATA_HOME', str(Path.home() / '.local/share')))]
+    roots += [Path(p) for p in os.environ.get('XDG_DATA_DIRS', '/usr/local/share:/usr/share').split(':')]
+    apps, seen = {}, set()
+    for root in roots:
+        directory = root / 'applications'
+        for path in sorted(directory.rglob('*.desktop')):
+            desktop_id = str(path.relative_to(directory)).replace('/', '-')
+            if desktop_id in seen:
+                continue
+            seen.add(desktop_id)
+            ini = configparser.ConfigParser(interpolation=None, strict=False)
+            try:
+                ini.read(path)
+                app = ini['Desktop Entry']
+                if app.get('Type') != 'Application' or app.get('Hidden', 'false') == 'true':
+                    continue
+                if app.get('Terminal', 'false') == 'true':
+                    continue
+                if not any(token in app.get('Exec', '') for token in ('%f', '%F', '%u', '%U')):
+                    continue
+                apps[f"{app.get('Name', desktop_id)} ({desktop_id})"] = path
+            except (configparser.Error, KeyError, UnicodeError):
+                continue
+    if not apps:
+        sys.exit('No installed file-opening applications found')
+    choice = subprocess.run(['fuzzel', '--dmenu', '--prompt=Open with: '],
+                            input='\n'.join(sorted(apps)), text=True, capture_output=True)
+    if choice.returncode == 0 and choice.stdout.strip() in apps:
+        subprocess.run(['gio', 'launch', str(apps[choice.stdout.strip()]), *sys.argv[1:]], check=True)
+
+
+if __name__ == '__main__':
+    main()

@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+set -euo pipefail
+# Apply on every run, even when Sine setup has already run or Zen is open.
+# user.js is read on the next browser launch. Cover every existing profile.
+python - <<'PY'
+import os
+from pathlib import Path
+import re
+
+root = Path(os.environ.get('XDG_CONFIG_HOME', str(Path.home() / '.config'))) / 'zen'
+transparent = '{{ if eq .chezmoi.hostname "tranquility" }}false{{ else }}true{{ end }}'
+paths = set(root.glob('*/prefs.js')) | set(root.glob('*/user.js'))
+# Include absolute profile paths and profiles that do not yet have prefs.js.
+import configparser
+ini = configparser.ConfigParser()
+ini.read(root / 'profiles.ini')
+profiles = {p.parent for p in paths}
+for section in ini.sections():
+    if section.startswith('Profile') and ini.has_option(section, 'Path'):
+        path = Path(ini.get(section, 'Path'))
+        if ini.get(section, 'IsRelative', fallback='1') == '1':
+            path = root / path
+        if path.is_dir():
+            profiles.add(path)
+for profile in profiles:
+    path = profile / 'user.js'
+    content = path.read_text() if path.exists() else ''
+    content = re.sub(r'^\s*user_pref\(\s*"browser\.tabs\.allow_transparent_browser"\s*,[^\n]*\n?', '', content, flags=re.M)
+    content = content.rstrip('\n') + '\n' if content else ''
+    path.write_text(content + f'user_pref("browser.tabs.allow_transparent_browser", {transparent});\n')
+    print(f'Zen transparency={transparent}: {profile}')
+PY

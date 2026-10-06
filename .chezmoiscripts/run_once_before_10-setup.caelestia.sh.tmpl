@@ -1,6 +1,15 @@
 #!/usr/bin/env bash
 
-if command -v caelestia &> /dev/null; then
+set -euo pipefail
+
+if ! command -v caelestia &>/dev/null; then
+    echo "==> Error: Caelestia CLI is missing after package installation." >&2
+    exit 1
+fi
+if [[ -f "${XDG_CONFIG_HOME:-$HOME/.config}/hypr/hyprland.lua" &&
+      -f "${XDG_STATE_HOME:-$HOME/.local/state}/caelestia/dots-state.json" ]]; then
+    echo "==> Existing Caelestia installation found; preserving upstream configs."
+else
   echo "==> Running Caelestia setup..."
-  caelestia install --aur-helper="yay" --enable-components="hypr,fish,foot,fastfetch,btop,thunar,starship,gtk,qt,auth,network,bluetooth,pipewire,clipboard,fonts,tools,spotify" --disable-components="micro,firefox,vscodium,vscode,zed,discord,todoist,uwsm,zen" --noconfirm || true
+  caelestia install --aur-helper="yay" --enable-components="hypr,fish,foot,fastfetch,btop,thunar,starship,gtk,qt,auth,network,bluetooth,pipewire,clipboard,fonts,tools,spotify" --disable-components="micro,firefox,vscodium,vscode,zed,discord,todoist,uwsm,zen" --noconfirm
 fi

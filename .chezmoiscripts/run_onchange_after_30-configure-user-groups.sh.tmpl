@@ -2,7 +2,9 @@
 
 set -euo pipefail
 
-echo "==> Configuring user groups for user: $USER..."
+setup_user="$(id -un)"
+
+echo "==> Configuring user groups for user: $setup_user..."
 
 {{ range .groups -}}
 # Ensure group '{{ . }}' exists
@@ -12,11 +14,11 @@ if ! getent group "{{ . }}" >/dev/null 2>&1; then
 fi
 
 # Add user to group if not already a member
-if ! id -nG "$USER" | grep -qw "{{ . }}"; then
-  echo "  -> Adding $USER to group: {{ . }}"
-  sudo usermod -aG "{{ . }}" "$USER"
+if ! [[ " $(id -nG "$setup_user") " == *" {{ . }} "* ]]; then
+  echo "  -> Adding $setup_user to group: {{ . }}"
+  sudo usermod -aG "{{ . }}" "$setup_user"
 else
-  echo "  -> $USER is already in group: {{ . }}"
+  echo "  -> $setup_user is already in group: {{ . }}"
 fi
 {{ end -}}
 

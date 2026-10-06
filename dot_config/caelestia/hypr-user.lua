@@ -12,6 +12,11 @@ hl.env("EDITOR", "nvim")
 --- Certain app dark mode theme 
 hl.env("GTK_THEME", "adw-gtk3-dark")
 
+-- Remove upstream arrow movement before registering media controls.
+for _, key in ipairs({ "up", "down", "left", "right" }) do
+    hl.unbind("SUPER + SHIFT + " .. key)
+end
+
 -- Player binds
 hl.bind(
     "SUPER + SHIFT + up",
@@ -31,6 +36,22 @@ hl.bind(
 hl.bind("SUPER + SHIFT + right", hl.dsp.global("caelestia:mediaNext"), { locked = true })
 hl.bind("SUPER + SHIFT + left", hl.dsp.global("caelestia:mediaPrev"), { locked = true })
 hl.bind("SUPER + SHIFT + Space", hl.dsp.global("caelestia:mediaToggle"), { locked = true })
+
+-- Laptop controls
+hl.bind("ALT + A", hl.dsp.exec_cmd("caelestia shell idleInhibitor toggle"))
+hl.bind(
+    "ALT + SHIFT + M",
+    hl.dsp.exec_cmd("wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle"),
+    { locked = true }
+)
+hl.bind("ALT + SHIFT + up", hl.dsp.global("caelestia:brightnessUp"), { locked = true, repeating = true })
+hl.bind("ALT + SHIFT + down", hl.dsp.global("caelestia:brightnessDown"), { locked = true, repeating = true })
+
+-- Register arrow focus ourselves; older installations may have patched these out.
+for _, direction in ipairs({ "left", "right", "up", "down" }) do
+    hl.unbind("SUPER + " .. direction)
+    hl.bind("SUPER + " .. direction, hl.dsp.focus({ direction = direction }))
+end
 
 -- Movement binds
 hl.bind("SUPER + H", hl.dsp.focus({ direction = "left" }))
@@ -60,10 +81,10 @@ hl.on("hyprland.start", function()
     ]])
 end)
 
--- Notes bind
-hl.bind(
-    "SUPER + O",
-    hl.dsp.exec_cmd(
-       "obsidian" 
-    )
-)
+-- Notes use the same launch/move/toggle behavior as music and communication.
+hl.bind("SUPER + O", fn.toggle("notes"))
+
+-- Keep the system sleep inhibitor connected to the shell's Keep Awake toggle.
+hl.on("hyprland.start", function()
+    hl.exec_cmd("$HOME/.local/bin/caelestia-keep-awake")
+end)

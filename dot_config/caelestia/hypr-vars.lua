@@ -25,18 +25,19 @@ return {
     kbMoveWinToWsGroup         = "CTRL + SUPER + SHIFT",
     kbGoToWs                   = "SUPER",
     kbGoToWsGroup              = "CTRL + SUPER",
-    kbNextWs                   = "SUPER + Right",
-    kbPrevWs                   = "SUPER + Left",
+    kbNextWs                   = "CTRL + SUPER + Right",
+    kbPrevWs                   = "CTRL + SUPER + Left",
 
     -- Window Group
-    kbWindowGroupCycleNext     = "ALT + TAB",
-    kbWindowGroupCyclePrev     = "SHIFT + ALT + TAB",
+    kbWindowGroupCycleNext     = "CTRL + ALT + TAB",
+    kbWindowGroupCyclePrev     = "CTRL + SHIFT + ALT + TAB",
     kbUngroup                  = "SUPER + SHIFT + G",
     kbToggleGroup              = "SUPER + G",
 
     -- Window Action
-    kbMoveWindow               = "SUPER + mouse:272",
-    kbResizeWindow             = "SUPER + mouse:273",
+    -- Upstream already registers Super+mouse dragging and resizing.
+    kbMoveWindow               = {},
+    kbResizeWindow             = {},
     kbWindowPip                = "SUPER + ALT + backslash",
     kbPinWindow                = "SUPER + P",
     kbWindowFullscreen         = "SUPER + SHIFT + F",
@@ -61,7 +62,9 @@ return {
     kbSession                  = "SUPER + M",
     kbShowSidebar              = "SUPER + N",
     kbClearNotifs              = "CTRL + ALT + C",
-    kbShowPanels               = "SUPER + P",
-    kbLock                     = "ALT + L",
+    kbShowPanels               = "ALT + SHIFT + P",
+    kbLock                     = "SUPER + Escape",
     kbRestoreLock              = "ALT + SHIFT + L",
+    -- Super+Shift+L moves windows; suspend through the session menu.
+    kbSleep                    = {},
 }

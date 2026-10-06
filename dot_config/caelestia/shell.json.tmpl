@@ -8,8 +8,9 @@
         "idle": {
             "inhibitWhenAudio": false,
             "inhibitWhenCharging": false,
-            "lockBeforeSleep": true,
+            "lockBeforeSleep": {{ if eq .chezmoi.hostname "innovation" }}false{{ else }}true{{ end }},
             "timeouts": [
+{{ if ne .chezmoi.hostname "innovation" }}
                 {
                     "idleAction": "lock",
                     "inhibitWhenAudio": false,
@@ -28,6 +29,7 @@
                     ],
                     "timeout": 1800
                 }
+{{ end }}
             ]
         }
     },
@@ -63,7 +65,7 @@
             }
         ],
         "vpn": {
-            "enabled": false,
+            "enabled": true,
             "provider": [
                 {
                     "connectCmd": [
@@ -75,11 +77,12 @@
                         "disconnect"
                     ],
                     "displayName": "Cloudflare WARP",
-                    "enabled": true,
                     "interface": "CloudflareWARP",
-                    "name": "warp"
+                    "name": "warp",
+                    "id": "warp"
                 }
-            ]
+            ],
+            "selectedProvider": "warp"
         }
     }
 }

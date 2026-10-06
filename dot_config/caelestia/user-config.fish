@@ -25,3 +25,8 @@ function conda
     __init_micromamba
     eval micromamba $argv
 end
+
+# Optional local credentials are deliberately unmanaged.
+if test -f ~/.config/caelestia/.env.secrets
+    source ~/.config/caelestia/.env.secrets
+end

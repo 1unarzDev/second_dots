@@ -1,7 +1,10 @@
 packages:
   pacman:
     # --- Caelestia ---
+    - xorg-xwayland
     - hyprland
+    - dart-sass
+    - swappy
     - hyprpicker
     - hyprsunset
     - fish
@@ -19,6 +22,19 @@ packages:
     - hyprpolkitagent
 
     # --- System & Audio/Bluetooth ---
+    - python
+    - curl
+    - xdg-utils
+    - glib2
+    - file
+    - power-profiles-daemon
+    - avahi
+    - ffmpeg
+    - poppler
+    - fd
+    - fzf
+    - jq
+    - resvg
     - base-devel
     - bluez
     - bluez-utils
@@ -32,10 +48,6 @@ packages:
     - hplip
     - udisks2
     - udiskie
-
-    # --- Hardware (NVIDIA & CPU) ---
-    - nvidia-open
-    - nvidia-settings
 
     # --- Dev Tools ---
     - git
@@ -53,6 +65,7 @@ packages:
     - trash-cli
     - 7zip
     - unzip
+    - pciutils
     - usbutils
     - imagemagick
 
@@ -78,8 +91,6 @@ packages:
     - caelestia-cli
     - caelestia-shell
     - quickshell-git
-    - dart-sass
-    - swappy   
 
     # --- Custom Binaries & Themes ---
     - auto-cpufreq

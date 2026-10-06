@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+# package.toml hash: {{ include "dot_config/yazi/package.toml" | sha256sum }}
+set -euo pipefail
+# ── Yazi ─────────────────────────────────────────────────────────────────────
+
+if command -v ya &>/dev/null; then
+  echo "==> Syncing Yazi plugins and flavors..."
+  pkg_log="$(mktemp)"
+  trap 'rm -f -- "$pkg_log"' EXIT
+  if ! ya pkg install >"$pkg_log" 2>&1; then
+    cat "$pkg_log" >&2
+    cache="${XDG_CACHE_HOME:-$HOME/.cache}/yazi/packages"
+    if [[ -d "$cache" ]] && grep -Eq 'File name too long|Too many levels of symbolic links' "$pkg_log"; then
+      backup="$(mktemp -d "${cache}.backup.XXXXXX")"
+      mv -- "$cache" "$backup/packages"
+      echo "==> Preserved corrupt Yazi package cache at $backup; retrying..."
+      ya pkg install
+    else
+      exit 1
+    fi
+  else
+    cat "$pkg_log"
+  fi
+  (
+    theme_dir="$(mktemp -d)"
+    trap 'rm -rf -- "$theme_dir"' EXIT
+    git clone https://github.com/einebrotscheibe/dynamic-yazi-caelestia-theme.git "$theme_dir"
+    bash -euo pipefail "$theme_dir/setup.sh"
+  )
+else
+  echo "==> Error: Yazi package manager 'ya' not found." >&2
+  exit 1
+fi
+

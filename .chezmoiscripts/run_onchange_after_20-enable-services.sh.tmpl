@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+set -euo pipefail
+{{ includeTemplate "setup-service.sh" . }}
+echo "==> Enabling system services..."
+{{ range .services.system -}}
+ensure_service system {{ . | quote }}
+{{ end -}}
