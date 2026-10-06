@@ -9,6 +9,11 @@ vim.opt.undofile = true
 vim.opt.number = true
 vim.opt.relativenumber = true
 vim.opt.mouse = 'a'
+-- cx terminals use the viewer clipboard, rather than this host's display socket.
+-- Ordinary terminals keep Neovim's normal Wayland/X11 provider selection.
+if vim.env.TMUX and vim.env.TMUX:match('/cx/managed%.sock,') then
+  vim.g.clipboard = 'tmux'
+end
 vim.opt.clipboard = 'unnamedplus'
 vim.opt.breakindent = true
 vim.opt.ignorecase = true
