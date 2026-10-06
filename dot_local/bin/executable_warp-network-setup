@@ -23,7 +23,10 @@ subprocess.run([str(Path.home()/'.local/bin/warp-lan-priority'),'--check'],check
 for family in ['-4','-6']:
  routes=json.loads(subprocess.check_output(['ip',family,'-j','route','get','1.1.1.1' if family=='-4' else '2606:4700:4700::1111']))
  assert routes[0]['dev']=='CloudflareWARP',str(routes)
-assert json.loads(subprocess.check_output(['ip','-j','route','get','100.96.0.28']))[0]['dev']=='CloudflareWARP'
+addresses=json.loads(subprocess.check_output(['ip','-j','addr','show','dev','CloudflareWARP']))
+local_ips={a['local'] for interface in addresses for a in interface.get('addr_info',[])}
+peer='100.96.0.12' if '100.96.0.28' in local_ips else '100.96.0.28'
+assert json.loads(subprocess.check_output(['ip','-j','route','get',peer]))[0]['dev']=='CloudflareWARP'
 with urllib.request.urlopen('https://www.cloudflare.com/cdn-cgi/trace',timeout=10) as r:
  trace=dict(l.split('=',1) for l in r.read().decode().splitlines() if '=' in l)
  assert trace.get('warp') in ('on','plus'),trace.get('warp')
