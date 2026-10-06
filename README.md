@@ -132,13 +132,13 @@ managed Arch hosts. The Ubuntu mesh server also needs this helper installed befo
 changing the shared profile. Existing forwarding/NAT configuration is not changed.
 
 `warp-network-setup` performs the three installations with sudo authentication,
-applies the personal policy, retries propagation checks, and accepts only after
+applies the personal policy, allows Cloudflare's documented ten-minute propagation window, retries checks, and accepts only after
 validation. Run it from innovation in a terminal.
 
 `cloudflare-network-policy --plan` shows the proposed personal profile.
 `--apply` requires exported `CLOUDFLARE_API_KEY` and successful LAN-rule checks on
 innovation, tranquility and verybeautifulserver. It changes only the existing
-personal enrollment profile, preserves its DNS/mesh settings, and arms a five-minute
+personal enrollment profile, preserves its DNS/mesh settings, and arms a fifteen-minute
 rollback. Keep the rollback pending until all hosts pass route/Internet/LAN checks,
 mesh SSH and cx remote file access, plus cloudflared readiness and the public
 Codex web endpoint. Deleting the displayed rollback-pending file accepts the

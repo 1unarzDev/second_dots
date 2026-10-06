@@ -50,6 +50,11 @@ class Routes(unittest.TestCase):
             execute.assert_not_called()
 
 class Policy(unittest.TestCase):
+    def test_deadlines_allow_documented_propagation_and_validation(self):
+        policy = importlib.machinery.SourceFileLoader('timing_policy', str(root/'dot_local/bin/executable_cloudflare-network-policy')).load_module()
+        setup = importlib.machinery.SourceFileLoader('timing_setup', str(root/'dot_local/bin/executable_warp-network-setup')).load_module()
+        self.assertGreaterEqual(setup.PROPAGATION_SECONDS,600)
+        self.assertGreaterEqual(policy.ROLLBACK_SECONDS-setup.PROPAGATION_SECONDS,180)
     def test_exclusions_keep_home_lan_and_mesh_tunneled(self):
         policy = importlib.machinery.SourceFileLoader('policy', str(root/'dot_local/bin/executable_cloudflare-network-policy')).load_module()
         networks = [ipaddress.ip_network(n['address']) for n in policy.exclusions()]

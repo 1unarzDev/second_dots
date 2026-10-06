@@ -11,6 +11,7 @@ import urllib.request
 
 ACCOUNT = 'caa986c8bf3907b23e49eace3b4401f1'
 POLICY = 'e098bf8e-8cdd-47a0-9592-ee456f6f79fe'
+ROLLBACK_SECONDS = 900
 ROOT = Path.home() / '.local/state/chezmoi/cloudflare-network'
 
 
@@ -90,7 +91,7 @@ def main():
     env = dict(os.environ)
     rollback = '''import json,os,time,urllib.request
 from pathlib import Path
-time.sleep(300)
+time.sleep(int(os.environ['CF_ROLLBACK_SECONDS']))
 p=Path(os.environ['CF_ROLLBACK_STATE'])
 if not p.exists():raise SystemExit(0)
 s=json.loads(p.read_text())
@@ -109,6 +110,7 @@ p.unlink()
     state.write_text(json.dumps({'before': before, 'url': 'https://api.cloudflare.com/client/v4/' + path}))
     state.chmod(0o600)
     env['CF_ROLLBACK_STATE'] = str(state)
+    env['CF_ROLLBACK_SECONDS'] = str(ROLLBACK_SECONDS)
     log = open(ROOT / 'rollback.log', 'a')
     process = subprocess.Popen(['/usr/bin/python3', '-c', rollback], env=env, stdin=subprocess.DEVNULL,
                                stdout=log, stderr=log, start_new_session=True)
@@ -118,7 +120,7 @@ p.unlink()
     except Exception:
         # Keep the rollback armed for uncertain API outcomes.
         raise
-    print(f'Policy updated. Automatic rollback is armed for 5 minutes (PID {process.pid}).')
+    print(f'Policy updated. Automatic rollback is armed for 15 minutes (PID {process.pid}).')
     print(f'After checking all three hosts, Internet egress, LAN, cx and public tunnel health, delete {state} to accept.')
 
 

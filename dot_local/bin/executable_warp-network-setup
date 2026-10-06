@@ -9,6 +9,8 @@ HOME = Path.home()
 HELPER = HOME / '.local/bin/warp-lan-priority'
 POLICY = HOME / '.local/bin/cloudflare-network-policy'
 HOSTS = ['tranquility', 'verybeautifulserver']
+# Cloudflare documents up to ten minutes for device-profile propagation.
+PROPAGATION_SECONDS = 660
 
 
 def run(args, capture=False):
@@ -34,7 +36,9 @@ print('LAN rules, IPv4/IPv6 Internet routes, mesh route and WARP egress passed')
 '''
     for host in [None] + HOSTS:
         args = ['/usr/bin/python3', '-'] if host is None else ['ssh', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=8', host, 'python3 -']
-        result = subprocess.run(args, input=probe, text=True, capture_output=True, timeout=25, check=True)
+        result = subprocess.run(args, input=probe, text=True, capture_output=True, timeout=25)
+        if result.returncode:
+            raise RuntimeError(f'{host or "innovation"}: {result.stderr.strip()[-1200:]}')
         print(f'{host or "innovation"}: {result.stdout.strip()}', flush=True)
     for host, home in [('tranquility','/home/peace'),('verybeautifulserver','/home/lunarz')]:
         json.loads(run(['cx', 'files', home, '--device', host], capture=True))
@@ -61,7 +65,7 @@ def main():
     # Source the explicitly authorized local Fish credential without copying it to another host.
     subprocess.run(['fish', '-c', 'if not set -q CLOUDFLARE_API_KEY; source ~/.config/caelestia/.env.secrets >/dev/null; end; '
                     'set -gx CLOUDFLARE_API_KEY $CLOUDFLARE_API_KEY; ~/.local/bin/cloudflare-network-policy --apply'], check=True)
-    deadline = time.monotonic() + 150
+    deadline = time.monotonic() + PROPAGATION_SECONDS
     while True:
         try:
             verify()
@@ -70,6 +74,7 @@ def main():
             if time.monotonic() >= deadline:
                 print('Verification failed. Timed rollback remains armed; no acceptance was recorded.', flush=True)
                 raise
+            print(str(error), flush=True)
             print('Waiting for policy propagation; retrying validation in 10 seconds.', flush=True)
             time.sleep(10)
     (HOME / '.local/state/chezmoi/cloudflare-network/rollback-pending.json').unlink()
