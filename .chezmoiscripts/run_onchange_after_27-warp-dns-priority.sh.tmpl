@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# helper hash: {{ include "dot_local/bin/executable_warp-dns-priority" | sha256sum }}
+set -euo pipefail
+sudo "$HOME/.local/bin/warp-dns-priority" --install
