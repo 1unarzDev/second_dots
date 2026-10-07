@@ -1,0 +1,11 @@
+[Unit]
+Description=Refresh Caelestia lock display after suspend
+After=graphical-session.target
+
+[Service]
+ExecStart=%h/.local/bin/caelestia-resume-lock
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,53 @@
+#!/usr/bin/env python3
+"""Refresh locked displays after logind reports resume."""
+import json
+import os
+from pathlib import Path
+import subprocess
+import time
+
+
+def refresh():
+    instances = json.loads(subprocess.check_output(['hyprctl', 'instances', '-j'], text=True, timeout=3))
+    if len(instances) != 1:
+        raise RuntimeError('Expected one compositor for this user')
+    instance = instances[0]
+    env = dict(os.environ, HYPRLAND_INSTANCE_SIGNATURE=instance['instance'], WAYLAND_DISPLAY=instance['wl_socket'])
+    helper = Path.home() / '.local/bin/caelestia-startup-lock'
+    subprocess.run([str(helper)], env=env, timeout=20, check=True)
+    # Resume can finish before the panel is ready to accept the first DPMS request.
+    for delay in (0.3, 1.0):
+        time.sleep(delay)
+        result = subprocess.run(['hyprctl', '-r', 'dispatch', 'hl.dsp.dpms({ action = "enable" })'],
+                                env=env, capture_output=True, text=True, timeout=3)
+        if result.returncode or result.stdout.strip() != 'ok':
+            raise RuntimeError('Compositor rejected display refresh')
+    print('Resume: lock confirmed and display refresh completed', flush=True)
+
+
+def monitor(lines, callback):
+    pending = False
+    for line in lines:
+        if line.startswith('signal '):
+            pending = 'interface=org.freedesktop.login1.Manager;' in line and 'member=PrepareForSleep' in line
+        elif pending and line.strip() in ('boolean true', 'boolean false'):
+            pending = False
+            if line.strip() == 'boolean false':
+                callback()
+
+
+def main():
+    command = ['dbus-monitor', '--system',
+               "type='signal',interface='org.freedesktop.login1.Manager',member='PrepareForSleep'"]
+    def callback():
+        try:
+            refresh()
+        except Exception as error:
+            print('Resume refresh failed: ' + str(error), flush=True)
+    with subprocess.Popen(command, stdout=subprocess.PIPE, text=True, bufsize=1) as bus:
+        monitor(bus.stdout, callback)
+    raise SystemExit('System sleep monitor exited')
+
+
+if __name__ == '__main__':
+    main()

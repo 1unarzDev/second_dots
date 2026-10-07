@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# helper: {{ include "dot_local/bin/executable_caelestia-resume-lock" | sha256sum }}
+# unit: {{ include "dot_config/systemd/user/caelestia-resume-lock.service" | sha256sum }}
+set -euo pipefail
+systemctl --user daemon-reload
+systemctl --user enable caelestia-resume-lock.service
+systemctl --user restart caelestia-resume-lock.service
