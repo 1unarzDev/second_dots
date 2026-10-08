@@ -1,0 +1,234 @@
+#!/usr/bin/env python3
+"""Stream files between local/SSH hosts and Docker containers; safely edit files."""
+import argparse
+import hashlib
+import json
+import os
+import posixpath
+from pathlib import Path, PurePosixPath
+import shlex
+import subprocess
+import sys
+import tempfile
+from dataclasses import dataclass
+from urllib.parse import unquote, urlsplit
+
+
+@dataclass(frozen=True)
+class Endpoint:
+    host: str | None
+    container: str | None
+    path: str
+    user: str | None = None
+
+    def command(self, argv, interactive=False):
+        if self.container:
+            argv = ['docker', 'exec', *(['-i'] if interactive else []),
+                    *(['--user', self.user] if self.user else []), self.container, *argv]
+        if self.host:
+            argv = ['ssh', '-T', '-o', 'BatchMode=yes', '-o', 'ForwardAgent=no', '-o', 'ConnectTimeout=10',
+                    '--', self.host, shlex.join(argv)]
+        return argv
+
+    def run(self, argv, **kwargs):
+        return subprocess.run(self.command(argv, 'input' in kwargs), check=True, **kwargs)
+
+
+def endpoint(value):
+    if '://' not in value:
+        return Endpoint(None, None, str(Path(value).expanduser().absolute()))
+    u = urlsplit(value)
+    if u.scheme not in ('ssh', 'docker') or not u.netloc or u.query or u.fragment:
+        raise ValueError('Use ssh://DEVICE/absolute/path or docker://DEVICE/CONTAINER/absolute/path')
+    host = unquote(u.netloc)
+    if host.startswith('-') or any(c.isspace() for c in host) or '/' in host or ':' in host:
+        raise ValueError('DEVICE must be an SSH alias or user@host; use SSH aliases for IPv6/ports')
+    path = unquote(u.path)
+    container = None
+    if u.scheme == 'docker':
+        parts = path.split('/', 2)
+        if len(parts) != 3 or not parts[1]:
+            raise ValueError('Docker endpoint requires a container and an absolute path')
+        container, path = parts[1], '/' + parts[2]
+        if not all(c.isascii() and (c.isalnum() or c in '_.-') for c in container) or container.startswith('-'):
+            raise ValueError('Invalid Docker container name or ID')
+    if not path.startswith('/') or '\0' in path:
+        raise ValueError('Remote paths must be absolute and contain no NUL')
+    return Endpoint(None if host == 'local' else host, container, path)
+
+
+def pin(ep):
+    if not ep.container:
+        return ep
+    # Resolve names once, so container replacement cannot redirect a transfer.
+    result = subprocess.run(
+        Endpoint(ep.host, None, '/').command(['docker', 'inspect', '--format',
+            '{{.Id}}\n{{.State.Running}}\n{{.Config.User}}\n{{index .Config.Labels "devcontainer.metadata"}}', ep.container]),
+        check=True, capture_output=True, text=True, timeout=20,
+    )
+    fields = result.stdout.splitlines()
+    if len(fields) < 3 or fields[1] != 'true':
+        raise ValueError('Container must be running')
+    user = fields[2] or None
+    metadata = '\n'.join(fields[3:]).strip()
+    if metadata and metadata != '<no value>':
+        for entry in json.loads(metadata):
+            if isinstance(entry, dict) and entry.get('remoteUser'):
+                user = entry['remoteUser']
+    if user and (not isinstance(user, str) or '${' in user):
+        raise ValueError('Unresolved devcontainer remoteUser; set a literal user in its configuration')
+    return Endpoint(ep.host, fields[0], ep.path, user)
+
+
+
+def copy(source, destination, overwrite=False):
+    src, dst = pin(endpoint(source)), pin(endpoint(destination))
+    path = PurePosixPath(src.path)
+    if posixpath.normpath(src.path) == '/':
+        raise ValueError('Copy a specific file/directory, not the entire container filesystem')
+    if (src.host, src.container) == (dst.host, dst.container):
+        source_path = posixpath.normpath(src.path)
+        destination_path = posixpath.normpath(dst.path)
+        target = posixpath.join(destination_path, path.name)
+        if target == source_path or destination_path.startswith(source_path + '/'):
+            raise ValueError('Refusing a self-copy or copying a directory inside itself')
+    dst.run(['test', '-d', dst.path], stdout=subprocess.DEVNULL)
+    # Destination is a directory; source basename is retained. Tar preserves
+    # tree structure, modes and symlinks, and never materializes a host staging copy.
+    producer = src.command(['tar', '-c', '-f', '-', '-C', str(path.parent), '--', path.name])
+    consumer = dst.command(['tar', '-x' if overwrite else '-xk', '--no-same-owner',
+                            '-f', '-', '-C', dst.path], interactive=True)
+    with tempfile.TemporaryFile() as source_errors, tempfile.TemporaryFile() as dest_errors:
+        first = subprocess.Popen(producer, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=source_errors)
+        second = None
+        try:
+            second = subprocess.Popen(consumer, stdin=first.stdout, stdout=subprocess.DEVNULL, stderr=dest_errors)
+            first.stdout.close()
+            dest_code = second.wait()
+            source_code = first.wait()
+            if source_code or dest_code:
+                messages = []
+                for handle in (source_errors, dest_errors):
+                    handle.seek(0)
+                    messages.append(handle.read(8192).decode(errors='replace'))
+                raise RuntimeError('Transfer failed; destination may contain partial files.\n' + ''.join(messages))
+        finally:
+            if first.poll() is None:
+                first.terminate()
+                first.wait()
+            if second is not None and second.poll() is None:
+                second.terminate()
+                second.wait()
+    print('Copied successfully (streamed, no staging copy).')
+
+
+def preview(value, limit):
+    ep = pin(endpoint(value))
+    if limit < 1 or limit > 16 * 1024 * 1024:
+        raise ValueError('Preview limit must be between 1 byte and 16 MiB')
+    data = ep.run(['head', '-c', str(limit + 1), '--', ep.path], capture_output=True).stdout
+    truncated = len(data) > limit
+    data = data[:limit]
+    if b'\0' in data:
+        print(f'Binary file: first {len(data)} bytes\n' + data[:256].hex(' ', 1))
+    else:
+        # File content must not execute terminal control sequences.
+        text = data.decode(errors='replace')
+        sys.stdout.write(''.join(c if c in '\n\t' or not (ord(c) < 32 or 127 <= ord(c) <= 159) else repr(c)[1:-1] for c in text))
+    if truncated:
+        print(f'\n[Preview truncated at {limit} bytes]', file=sys.stderr)
+
+
+READ = '''set -eu
+p=$1
+if test -L "$p" || ! test -f "$p"; then echo "Edit requires a regular non-symlink file" >&2; exit 1; fi
+head -c "$2" -- "$p"
+'''
+WRITE = '''set -eu
+p=$1
+expected=$2
+if test -L "$p" || ! test -f "$p"; then echo "Edit target changed type" >&2; exit 1; fi
+tmp=$(mktemp "$(dirname -- "$p")/.cx-edit.XXXXXXXX")
+trap 'rm -f -- "$tmp"' EXIT HUP INT TERM
+cat > "$tmp"
+actual=$(sha256sum < "$p")
+actual=${actual%% *}
+if test "$actual" != "$expected"; then echo "Concurrent change detected; refusing overwrite" >&2; exit 1; fi
+chmod --reference="$p" -- "$tmp"
+mv -f -- "$tmp" "$p"
+'''
+
+
+def edit(value, editor, limit):
+    if limit < 1:
+        raise ValueError('Edit limit must be positive')
+    ep = pin(endpoint(value))
+    # Bounded staging is intentional for editors: transfer reads through the
+    # container's configured user, not Docker cp's root file ownership defaults.
+    size = int(ep.run(['stat', '-c', '%s', '--', ep.path], capture_output=True, text=True).stdout.strip())
+    if size > limit:
+        raise ValueError(f'File exceeds edit limit ({limit} bytes); use copy or raise --limit')
+    recovery = None
+    with tempfile.TemporaryDirectory(prefix='cx-container-edit-') as folder:
+        file = Path(folder) / (PurePosixPath(ep.path).name or 'file')
+        with file.open('wb') as output:
+            ep.run(['sh', '-c', READ, 'cx-edit', ep.path, str(limit + 1)], stdout=output)
+        if file.stat().st_size > limit:
+            raise ValueError('File grew beyond the edit limit')
+        initial = hashlib.sha256(file.read_bytes()).hexdigest()
+        try:
+            subprocess.run([*shlex.split(editor), str(file)], check=True)
+            if file.stat().st_size > limit:
+                raise ValueError('Edited file exceeds the edit limit')
+            if hashlib.sha256(file.read_bytes()).hexdigest() == initial:
+                print('No changes; nothing uploaded.')
+                return
+            with file.open('rb') as data:
+                subprocess.run(ep.command(['sh', '-c', WRITE, 'cx-edit', ep.path, initial], interactive=True),
+                               stdin=data, check=True)
+        except Exception:
+            fd, recovery = tempfile.mkstemp(prefix='cx-container-unsaved-', suffix=file.suffix)
+            with os.fdopen(fd, 'wb') as output:
+                output.write(file.read_bytes())
+            print(f'Edited file preserved at {recovery}', file=sys.stderr)
+            raise
+    print('Saved atomically after checking original content.')
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__, epilog='Docker endpoints: docker://local/NAME/path or docker://SSH_ALIAS/NAME/path. SSH endpoints: ssh://SSH_ALIAS/path. Copy destinations are existing directories. Paths containing # or ? must be URL-encoded.')
+    commands = parser.add_subparsers(dest='action', required=True)
+    p = commands.add_parser('copy', help='Stream a file or directory between any endpoints')
+    p.add_argument('source'); p.add_argument('destination')
+    p.add_argument('--overwrite', action='store_true', help='Replace existing destination files (default: refuse)')
+    for action in ('ls', 'preview', 'edit'):
+        p = commands.add_parser(action)
+        p.add_argument('endpoint')
+        if action == 'preview':
+            p.add_argument('--limit', type=int, default=1024 * 1024)
+        if action == 'edit':
+            p.add_argument('--editor', default=os.environ.get('VISUAL') or os.environ.get('EDITOR') or 'nvim')
+            p.add_argument('--limit', type=int, default=64 * 1024 * 1024)
+    p = commands.add_parser('containers', help='List container IDs, names, and running state')
+    p.add_argument('--device', default='local', help='SSH alias, or local')
+    args = parser.parse_args()
+    try:
+        if args.action == 'copy':
+            copy(args.source, args.destination, args.overwrite)
+        elif args.action == 'preview':
+            preview(args.endpoint, args.limit)
+        elif args.action == 'edit':
+            edit(args.endpoint, args.editor, args.limit)
+        elif args.action == 'ls':
+            ep = pin(endpoint(args.endpoint)); ep.run(['ls', '-lah', '--', ep.path])
+        elif args.action == 'containers':
+            host = endpoint('ssh://' + args.device + '/')
+            host.run(['docker', 'ps', '-a', '--format', '{{.ID}}\t{{.Names}}\t{{.Status}}'])
+    except (ValueError, RuntimeError, OSError, subprocess.SubprocessError) as error:
+        print(f'cx-container: {error}', file=sys.stderr)
+        return 1
+    return 0
+
+
+if __name__ == '__main__':
+    sys.exit(main())

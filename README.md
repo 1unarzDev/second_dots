@@ -183,3 +183,58 @@ service. `systemctl --user status caelestia-keep-awake.service` and
 `systemd-inhibit --list` show its live state. State-transition regression checks
 are in `tests/check-keep-awake.py`. Physical lid-close behavior needs a laptop
 check; toggle release/acquisition and bridge crash recovery were verified live.
+
+## Container files across devices
+
+`cx-container` is a chezmoi-managed companion to cx. It streams files/directories
+between local paths, SSH hosts, and running Docker/devcontainers. No container
+SSH daemon, mounted filesystem, agent forwarding, or full temporary transfer
+copy is required. Use an existing SSH alias for each host; Docker access must
+already work as that account. Container names resolve to immutable IDs before
+execution. Devcontainer `remoteUser` metadata is respected, otherwise Docker's
+configured container user is used.
+
+```sh
+cx-container containers --device tranquility
+cx-container ls docker://tranquility/CONTAINER/workspaces/project
+cx-container preview docker://tranquility/CONTAINER/workspaces/project/README.md
+cx-container edit docker://tranquility/CONTAINER/workspaces/project/README.md
+
+# Copy OUT to a device's existing directory.
+cx-container copy docker://tranquility/CONTAINER/workspaces/project/results ssh://innovation/home/lunarz/Downloads
+# Copy IN from this device.
+cx-container copy ./dataset docker://tranquility/CONTAINER/workspaces/project
+# Container to container, including different hosts.
+cx-container copy docker://tranquility/SOURCE/data/results docker://verybeautifulserver/DESTINATION/workspaces/project
+```
+
+Use `docker://local/CONTAINER/path` for containers on the current device. Remote
+paths are absolute. Copy always retains the source basename inside the existing
+destination directory. Quote spaces and URL-encode `#`, `?`, and literal `%` in
+URLs. Existing files are refused unless `--overwrite` is explicitly supplied.
+Directory transfers preserve modes and symlinks without following symlinks.
+Failures can leave partial output; this command does not implement resumed jobs,
+source deletion, or a filesystem snapshot. The existing `cx copy` job machinery
+remains available for durable host-to-host transfers, and cx's container browser
+remains available for browsing/previews.
+
+Bulk transfers use tar streams with OS pipe backpressure and SSH encryption.
+Remote-to-remote transfers relay through the device running the command, avoiding
+new SSH trust/key requirements. Containers need `sh`, `tar`, `ls`, and `head`.
+Editing additionally needs GNU-compatible `stat`, `chmod --reference`, `mktemp`,
+`sha256sum`, and `mv`. Edited files stage privately on the viewer (64 MiB default
+limit), open with `$VISUAL`, `$EDITOR`, or nvim, then save through the container
+user with an atomic same-directory rename after a content-hash check. Concurrent
+changes refuse upload and preserve the edited local file for recovery. Edits
+require a regular file, preserve permission bits, and do not preserve special
+ACLs/xattrs or another user's ownership. An editor that detaches needs its wait
+option, e.g. `--editor 'code --wait'`. Binary previews are summarized and terminal
+control sequences are escaped; `--limit` controls preview/edit size limits.
+
+The helper is installed by ordinary chezmoi apply on innovation/tranquility;
+remote endpoints need only SSH and Docker/tools, not the helper. Live regression
+checks use task-owned disposable containers and directories:
+
+```sh
+CX_CONTAINER_TEST_DOCKER=1 CX_CONTAINER_TEST_SSH=verybeautifulserver python3 tests/check-container-files.py
+```
