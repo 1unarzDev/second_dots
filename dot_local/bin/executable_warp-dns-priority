@@ -20,6 +20,8 @@ def rewrite(text):
             raise RuntimeError('Expected dns and resolve providers; refusing an unfamiliar hosts configuration')
         # Keep files, myhostname, mDNS, and their action clauses intact.
         groups = [g for g in groups if g.split()[0] != 'resolve'] + resolve
+        # Explicit mdns.allow removes the DNS SOA probe that stalls behind WARP.
+        groups = [re.sub(r'^mdns(4|6)?_minimal\b', r'mdns\1', g) for g in groups]
         lines[index] = 'hosts: ' + ' '.join(groups) + (' #' + comment.rstrip('\n') if marker else '') + '\n'
     if not found:
         raise RuntimeError('No hosts entry found')
@@ -33,11 +35,15 @@ def main():
     path = Path('/etc/nsswitch.conf')
     original = path.read_text()
     updated = rewrite(original)
-    if original == updated:
-        print('DNS provider already precedes systemd-resolved; no changes needed.')
+    allowed = Path('/etc/mdns.allow')
+    allowed_original = allowed.read_text() if allowed.exists() else ''
+    entries = {line.split('#', 1)[0].strip() for line in allowed_original.splitlines()}
+    additions = ''.join(name + '\n' for name in ('.local', '.local.') if name not in entries)
+    if original == updated and not additions:
+        print('WARP DNS and direct .local multicast lookup already configured.')
         return
     if not args.install:
-        print('Proposed hosts lookup:')
+        print('Proposed: explicit .local multicast lookup plus WARP DNS priority.')
         print(next(line for line in updated.splitlines() if line.startswith('hosts:')))
         return
     if os.geteuid() != 0:
@@ -46,6 +52,10 @@ def main():
     if not backup.exists():
         backup.write_text(original)
         backup.chmod(0o600)
+    if allowed.exists() and not Path('/etc/mdns.allow.before-warp-dns-priority').exists():
+        Path('/etc/mdns.allow.before-warp-dns-priority').write_text(allowed_original)
+    allowed.write_text(allowed_original + ('\n' if allowed_original and not allowed_original.endswith('\n') else '') + additions)
+    allowed.chmod(0o644)
     path.write_text(updated)
     print('DNS priority installed; original saved in /etc/nsswitch.conf.before-warp-dns-priority')
 
